@@ -1,0 +1,4 @@
+*.gb
+*.exe
+/build
+/.vscode
