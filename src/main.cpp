@@ -2,8 +2,6 @@
 #include <iostream>
 #include <fstream>
 
-bool enable_pause = false;
-
 CPU cpu;
 
 int main(int argc, char* argv[]) {
@@ -27,8 +25,6 @@ int main(int argc, char* argv[]) {
 
     while (true) {
         cpu.execute();
-        if (enable_pause)
-            system("pause");
     }
 
     return 0;

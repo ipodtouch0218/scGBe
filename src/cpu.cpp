@@ -803,7 +803,14 @@ void CPU::execute() {
 
     case 0xE8: {
         // ADD SP,e
-        // TODO
+        int8_t value = get_address_space_byte(registers.pc++);
+        uint16_t current_value = get_register_word(WordRegister::SP);
+        uint16_t result = current_value + value;
+        set_register_word(WordRegister::SP, result);
+
+        bool half_carry = current_value <= 0xF && result > 0xF;
+        bool carry = current_value <= 0xFF && result > 0xFF;
+        set_all_flags(false, false, half_carry, carry);
         break;
     }
 
@@ -865,22 +872,20 @@ void CPU::execute() {
     }
 
     case 0xF8: {
-        // LOAD HL FROM (SP+offset) WORD
-        // TODO verify that this is correct
-        int8_t offset = (int8_t) get_address_space_byte(registers.pc++);
-        uint16_t addr = get_register_word(WordRegister::SP) + offset;
+        // LOAD HL WITH SP+offset
+        int8_t value = (int8_t) get_address_space_byte(registers.pc++);
+        uint16_t current_value = get_register_word(WordRegister::SP);
+        uint16_t result = current_value + value;
+        set_register_word(WordRegister::HL, result);
 
-        uint8_t lsb = get_address_space_byte(addr);
-        uint8_t msb = get_address_space_byte(addr + 1);
-        uint16_t value = (((uint16_t) msb) << 8) | lsb;
-
-        set_register_word(WordRegister::HL, value);
+        bool half_carry = current_value <= 0xF && result > 0xF;
+        bool carry = current_value <= 0xFF && result > 0xFF;
+        set_all_flags(false, false, half_carry, carry);
         break;
     }
 
     case 0xF9: {
         // LOAD SP FROM HL WORD
-        // TODO verify that this is correct
         uint16_t value = get_register_word(WordRegister::HL);
         set_register_word(WordRegister::SP, value);
         break;
