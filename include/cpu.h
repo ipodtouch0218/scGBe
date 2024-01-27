@@ -31,5 +31,5 @@ class CPU {
     void call_function(uint16_t address);
     void return_function();
 
-    void set_flags(bool zero, bool subtraction, bool half_carry, bool carry);
+    void set_all_flags(bool zero, bool subtraction, bool half_carry, bool carry);
 };
