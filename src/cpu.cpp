@@ -2,163 +2,56 @@
 #include <iostream>
 #include <iomanip>
 #include <cstring>
+#include <strings.h>
+#include <stdlib.h>
 
-void CPU::set_all_flags(bool zero, bool subtraction, bool half_carry, bool carry) {
-    registers.flags.zero = zero;
-    registers.flags.subtraction = subtraction;
-    registers.flags.half_carry = half_carry;
-    registers.flags.carry = carry;
+#include "gbsystem.h"
+#include "registers.h"
+
+CPU::CPU(GBSystem* gb) {
+    this->gb = gb;
 }
 
-uint8_t CPU::get_register_byte(ByteRegister::ByteRegister target) {
-    switch (target) {
-    case ByteRegister::A: return registers.a;
-    case ByteRegister::B: return registers.b;
-    case ByteRegister::C: return registers.c;
-    case ByteRegister::D: return registers.d;
-    case ByteRegister::E: return registers.e;
-    case ByteRegister::H: return registers.h;
-    case ByteRegister::L: return registers.l;
-    case ByteRegister::HL_INDIRECT: return get_address_space_byte(registers.hl());
-    default: throw std::invalid_argument("Invalid register target " + target);
+void CPU::tick() {
+    if (wait_ticks == 0) {
+        wait_ticks = execute();
     }
+    wait_ticks--;
 }
 
-void CPU::set_register_byte(ByteRegister::ByteRegister target, uint8_t value) {
-    switch (target) {
-    case ByteRegister::A: registers.a = value; break;
-    case ByteRegister::B: registers.b = value; break;
-    case ByteRegister::C: registers.c = value; break;
-    case ByteRegister::D: registers.d = value; break;
-    case ByteRegister::E: registers.e = value; break;
-    case ByteRegister::H: registers.h = value; break;
-    case ByteRegister::L: registers.l = value; break;
-    case ByteRegister::HL_INDIRECT: set_address_space_byte(registers.hl(), value); break;
-    default: throw std::invalid_argument("Invalid register target " + target);
-    }
-}
+uint8_t CPU::execute() {
 
-uint16_t CPU::get_register_word(WordRegister::WordRegister target) {
-    switch (target) {
-    case WordRegister::BC: return registers.bc();
-    case WordRegister::DE: return registers.de();
-    case WordRegister::HL: return registers.hl();
-    case WordRegister::SP: return registers.sp;
-    case WordRegister::AF: return registers.af();
-    default: throw std::invalid_argument("Invalid register target " + target);
-    }
-}
-
-void CPU::set_register_word(WordRegister::WordRegister target, uint16_t value) {
-    switch (target) {
-    case WordRegister::BC: registers.set_bc(value); break;
-    case WordRegister::DE: registers.set_de(value); break;
-    case WordRegister::HL: registers.set_hl(value); break;
-    case WordRegister::SP: registers.sp = value; break;
-    case WordRegister::AF: registers.set_af(value); break;
-    default: throw std::invalid_argument("Invalid register target " + target);
-    }
-}
-
-uint8_t CPU::get_address_space_byte(uint16_t addr) {
-    if (addr >= 0xE000 && addr <= 0xFDFF) {
-        // ERAM support:
-        addr -= 0x2000;
+    uint8_t interrupt_cycles = check_for_interrupts();
+    if (interrupt_cycles != 0) {
+        return interrupt_cycles;
     }
 
-    // std::cout << "[R] 0x" << std::hex << (int) addr << " -> " << (int) address_space[addr] << std::endl;
-    return address_space[addr];
-}
+    uint8_t opcode = gb->get_address_space_byte(registers.pc++);
+    //std::cout << "[" << (int) gb->cycles << "] Executing at 0x" << std::hex << (int) (registers.pc - 1) << " opcode 0x" << std::hex << (int) opcode << '\n';
 
-void CPU::set_address_space_byte(uint16_t addr, uint8_t value) {
-    if (addr <= 0x7FFF) {
-        // Protect ROM
-        throw std::runtime_error("Tried to write to ROM! " + addr);
+    if (gb->cycles == 0) {
+        std::cout << "New frame!" << std::endl;
     }
-
-    if (addr >= 0xE000 && addr <= 0xFDFF) {
-        // ERAM support:
-        addr -= 0x2000;
-    }
-
-    // std::cout << "[W] 0x" << std::hex << (int) addr << " <- " << (int) value << std::endl;
-    address_space[addr] = value;
-}
-
-uint8_t CPU::add_byte_with_overflow(uint8_t value, bool add_carry) {
-    uint8_t current_value = registers.a;
-    uint8_t result = current_value + value + (add_carry && registers.flags.carry);
-
-    bool half_carry = (value & 0xF) + (current_value & 0xF) > 0xF;
-    bool carry = result < value || result < current_value;
-    set_all_flags(result == 0, false, half_carry, carry);
-    return result;
-}
-
-uint8_t CPU::sub_byte_with_overflow(uint8_t value, bool sub_carry) {
-    uint8_t current_value = registers.a;
-    uint8_t result = current_value - value - (sub_carry && registers.flags.carry);
-
-    bool half_carry = (value & 0xF) + (current_value & 0xF) > 0xF;
-    bool carry = current_value < value;
-    set_all_flags(result == 0, true, half_carry, carry);
-    return result;
-}
-
-bool CPU::evaluate_condition(Condition::Condition cc) {
-    switch (cc) {
-    case Condition::NONZERO: return !registers.flags.zero;
-    case Condition::ZERO: return registers.flags.zero;
-    case Condition::NOCARRY: return !registers.flags.carry;
-    case Condition::CARRY: return registers.flags.carry;
-    default: throw std::invalid_argument("Unknown conditional value " + cc);
-    }
-}
-
-void CPU::call_function(uint16_t address) {
-    uint8_t pc_msb = (registers.pc >> 8) & 0xFF;
-    uint8_t pc_lsb = registers.pc & 0xFF;
-    set_address_space_byte(--registers.sp, pc_msb);
-    set_address_space_byte(--registers.sp, pc_lsb);
-    registers.pc = address;
-}
-
-void CPU::return_function() {
-    uint8_t lsb = get_address_space_byte(registers.sp++);
-    uint8_t msb = get_address_space_byte(registers.sp++);
-    uint16_t addr = (((uint16_t) msb) << 8) | lsb;
-    registers.pc = addr;
-}
-
-void CPU::reset() {
-    registers.clear();
-    memset(address_space + 0x8000, 0, 0xA000-0x8000); // Clear VRAM
-}
-
-void CPU::execute() {
-
-    uint8_t opcode = get_address_space_byte(registers.pc++);
-    std::cout << "Executing at 0x" << std::hex << (int) (registers.pc - 1) << " opcode 0x" << std::hex << (int) opcode << std::endl;
 
     switch (opcode) {
     case 0x00: {
-        // NOP
-        break;
+        // NOP: 0b00000000
+        return 1;
     }
 
     case 0x01:
     case 0x11:
     case 0x21:
     case 0x31: {
-        // LD WORD REGISTER FROM IMMEDIATE
+        // LD WORD REGISTER FROM IMMEDIATE: 0b00xx0001
         WordRegister::WordRegister target = (WordRegister::WordRegister) ((opcode & 0b00110000) >> 4);
 
-        uint8_t lsb = get_address_space_byte(registers.pc++);
-        uint8_t msb = get_address_space_byte(registers.pc++);
+        uint8_t lsb = gb->get_address_space_byte(registers.pc++);
+        uint8_t msb = gb->get_address_space_byte(registers.pc++);
         uint16_t result = (((uint16_t) msb) << 8) + lsb;
 
         set_register_word(target, result);
-        break;
+        return 3;
     }
 
     case 0x02:
@@ -177,9 +70,11 @@ void CPU::execute() {
 
         uint8_t value = get_register_byte(ByteRegister::A);
         uint16_t addr = get_register_word(target);
-        set_register_word(target, addr + auto_increment);
-        set_address_space_byte(addr, value);
-        break;
+        if (auto_increment != 0) {
+            set_register_word(target, addr + auto_increment);
+        }
+        gb->set_address_space_byte(addr, value);
+        return 2;
     }
 
     case 0x03:
@@ -190,7 +85,7 @@ void CPU::execute() {
         WordRegister::WordRegister target = (WordRegister::WordRegister) ((opcode & 0b00110000) >> 4);
         uint16_t value = get_register_word(target) + 1;
         set_register_word(target, value);
-        break;
+        return 2;
     }
 
     case 0x04:
@@ -210,7 +105,7 @@ void CPU::execute() {
         registers.flags.subtraction = false;
         registers.flags.half_carry = (value & 0xF) == 0xF;
         set_register_byte(target, result);
-        break;
+        return 1 + (target == ByteRegister::HL_INDIRECT);
     }
 
     case 0x05:
@@ -230,7 +125,7 @@ void CPU::execute() {
         registers.flags.subtraction = true;
         registers.flags.half_carry = (value & 0xF) == 0;
         set_register_byte(target, result);
-        break;
+        return 1 + (target == ByteRegister::HL_INDIRECT);
     }
 
     case 0x06:
@@ -243,9 +138,9 @@ void CPU::execute() {
     case 0x3E: {
         // LD TO BYTE REGISTER FROM IMMEDIATE VALUE: 0b00xxx110
         ByteRegister::ByteRegister target = (ByteRegister::ByteRegister) ((opcode & 0b00111000) >> 3);
-        uint8_t value = get_address_space_byte(registers.pc++);
+        uint8_t value = gb->get_address_space_byte(registers.pc++);
         set_register_byte(target, value);
-        break;
+        return 2 + (target == ByteRegister::HL_INDIRECT);
     }
 
     case 0x07: {
@@ -257,21 +152,21 @@ void CPU::execute() {
 
         set_register_byte(ByteRegister::A, value);
         set_all_flags(false, false, false, shifted_out_bit);
-        break;
+        return 1;
     }
 
     case 0x08: {
         // LD TO WORD (INDIRECT) IMMEDIATE VALUE FROM REGISTER SP: 0b00001000
-        uint8_t addr_lsb = get_address_space_byte(registers.pc++);
-        uint8_t addr_msb = get_address_space_byte(registers.pc++);
+        uint8_t addr_lsb = gb->get_address_space_byte(registers.pc++);
+        uint8_t addr_msb = gb->get_address_space_byte(registers.pc++);
         uint16_t addr = (((uint16_t) addr_msb) << 8) + addr_lsb;
 
         uint8_t sp_lsb = registers.sp & 0xFF;
         uint8_t sp_msb = (registers.sp >> 8) & 0xFF;
 
-        set_address_space_byte(addr, sp_lsb);
-        set_address_space_byte(addr + 1, sp_msb);
-        break;
+        gb->set_address_space_byte(addr, sp_lsb);
+        gb->set_address_space_byte(addr + 1, sp_msb);
+        return 5;
     }
 
     case 0x09:
@@ -284,34 +179,45 @@ void CPU::execute() {
         uint16_t value = get_register_word(target);
 
         uint16_t result = current_value + value;
-        set_register_word(WordRegister::HL, value);
+        set_register_word(WordRegister::HL, result);
         registers.flags.subtraction = false;
         registers.flags.half_carry = current_value <= 0xFFF && result > 0xFFF; // TODO: is this correct?
         registers.flags.carry = result < value || result < current_value;
-        break;
+        return 2;
     }
 
     case 0x0A:
     case 0x1A:
     case 0x2A:
     case 0x3A: {
-        // LD TO BYTE REGISTER A FROM (INDIRECT) WORD REGISTER: 0b000xx110
-        WordRegister::WordRegister target = (WordRegister::WordRegister) ((opcode & 0b00011000) >> 3);
-        uint16_t addr = get_register_word(target);
-        uint16_t value = get_address_space_byte(addr);
+        // LD TO (INDIRECT) WORD REGISTER FROM BYTE REGISTER A : 0b00xx0110
+        WordRegister::WordRegister source;
+        uint16_t auto_increment = 0;
+        switch ((opcode & 0b00110000) >> 4) {
+        case 0: source = WordRegister::BC; break;
+        case 1: source = WordRegister::DE; break;
+        case 2: source = WordRegister::HL; auto_increment = 1; break;
+        case 3: source = WordRegister::HL; auto_increment = -1; break;
+        }
+
+        uint16_t addr = get_register_word(source);
+        uint16_t value = gb->get_address_space_byte(addr);
+        if (auto_increment != 0) {
+            set_register_word(source, addr + auto_increment);
+        }
         set_register_byte(ByteRegister::A, value);
-        break;
+        return 2;
     }
 
     case 0x0B:
     case 0x1B:
     case 0x2B:
     case 0x3B: {
-        // DEC WORD REGISTER: 0b00xx0011
-        WordRegister::WordRegister target = (WordRegister::WordRegister) ((opcode & 0b00011000) >> 3);
+        // DEC WORD REGISTER: 0b00xx1011
+        WordRegister::WordRegister target = (WordRegister::WordRegister) ((opcode & 0b00110000) >> 4);
         uint16_t value = get_register_word(target) - 1;
         set_register_word(target, value);
-        break;
+        return 2;
     }
 
     case 0x0F: {
@@ -323,14 +229,14 @@ void CPU::execute() {
 
         set_register_byte(ByteRegister::A, value);
         set_all_flags(false, false, false, shifted_out_bit);
-        break;
+        return 1;
     }
 
     case 0x10: {
         // STOP: 0b00010000
         // TODO
         throw std::runtime_error("Stop!");
-        break;
+        return 1;
     }
 
     case 0x17: {
@@ -342,14 +248,14 @@ void CPU::execute() {
 
         set_register_byte(ByteRegister::A, value);
         set_all_flags(false, false, false, shifted_out_bit);
-        break;
+        return 1;
     }
 
     case 0x18: {
         // RELATIVE JUMP: 0b00011000
-        int8_t offset = (int8_t) get_address_space_byte(registers.pc++);
+        int8_t offset = (int8_t) gb->get_address_space_byte(registers.pc++);
         registers.pc += offset;
-        break;
+        return 3;
     }
 
     case 0x1F: {
@@ -361,7 +267,7 @@ void CPU::execute() {
 
         set_register_byte(ByteRegister::A, value);
         set_all_flags(false, false, false, shifted_out_bit);
-        break;
+        return 1;
     }
 
     case 0x20:
@@ -370,12 +276,14 @@ void CPU::execute() {
     case 0x38: {
         // RELATIVE JUMP (CONDITIONAL): 0b001xx000
         Condition::Condition cc = (Condition::Condition) ((opcode & 0b00011000) >> 3);
-        int8_t offset = (int8_t) get_address_space_byte(registers.pc++);
+        int8_t offset = (int8_t) gb->get_address_space_byte(registers.pc++);
 
         if (evaluate_condition(cc)) {
             registers.pc += offset;
+            return 3;
         }
-        break;
+
+        return 2;
     }
 
     case 0x27: {
@@ -405,7 +313,7 @@ void CPU::execute() {
 
         registers.flags.zero = (value == 0);
         registers.flags.half_carry = false;
-        break;
+        return 1;
     }
 
     case 0x2F: {
@@ -415,30 +323,23 @@ void CPU::execute() {
 
         registers.flags.subtraction = true;
         registers.flags.half_carry = true;
-        break;
+        return 1;
     }
 
     case 0x37: {
         // SET CARRY FLAG: 0b00110111
-        registers.flags.carry = true;
         registers.flags.subtraction = false;
         registers.flags.half_carry = false;
-        break;
+        registers.flags.carry = true;
+        return 1;
     }
 
     case 0x3F: {
         // COMPLEMENT CARRY FLAG: 0b00111111
-        registers.flags.carry = !registers.flags.carry;
         registers.flags.subtraction = false;
         registers.flags.half_carry = false;
-        break;
-    }
-
-    case 0x76: {
-        // HALT: 0b01110110
-        // TODO
-        throw std::runtime_error("Halt!");
-        break;
+        registers.flags.carry = !registers.flags.carry;
+        return 1;
     }
 
     case 0x40 ... 0x75:
@@ -448,7 +349,14 @@ void CPU::execute() {
         ByteRegister::ByteRegister source = (ByteRegister::ByteRegister) ((opcode & 0b00000111) >> 0);
         uint8_t value = get_register_byte(source);
         set_register_byte(target, value);
-        break;
+        return 1 + (source == ByteRegister::HL_INDIRECT || target == ByteRegister::HL_INDIRECT);
+    }
+
+    case 0x76: {
+        // HALT: 0b01110110
+        // TODO
+        throw std::runtime_error("Halt!");
+        return 1;
     }
 
     case 0x80 ... 0x8F: {
@@ -458,7 +366,7 @@ void CPU::execute() {
         uint8_t value = get_register_byte(target);
         uint8_t result = add_byte_with_overflow(value, use_carry);
         set_register_byte(ByteRegister::A, result);
-        break;
+        return 1 + (target == ByteRegister::HL_INDIRECT);
     }
 
     case 0x90 ... 0x9F: {
@@ -468,7 +376,7 @@ void CPU::execute() {
         uint8_t value = get_register_byte(target);
         uint8_t result = sub_byte_with_overflow(value, use_carry);
         set_register_byte(ByteRegister::A, result);
-        break;
+        return 1 + (target == ByteRegister::HL_INDIRECT);
     }
 
     case 0xA0 ... 0xA7: {
@@ -478,7 +386,7 @@ void CPU::execute() {
 
         set_register_byte(ByteRegister::A, value);
         set_all_flags(value == 0, false, true, false);
-        break;
+        return 1 + (target == ByteRegister::HL_INDIRECT);
     }
 
     case 0xA8 ... 0xAF: {
@@ -488,7 +396,7 @@ void CPU::execute() {
 
         set_register_byte(ByteRegister::A, value);
         set_all_flags(value == 0, false, false, false);
-        break;
+        return 1 + (target == ByteRegister::HL_INDIRECT);
     }
 
     case 0xB0 ... 0xB7: {
@@ -498,7 +406,7 @@ void CPU::execute() {
 
         set_register_byte(ByteRegister::A, value);
         set_all_flags(value == 0, false, false, false);
-        break;
+        return 1 + (target == ByteRegister::HL_INDIRECT);
     }
 
     case 0xB8 ... 0xBF: {
@@ -506,7 +414,7 @@ void CPU::execute() {
         ByteRegister::ByteRegister target = (ByteRegister::ByteRegister) ((opcode & 0b00000111) >> 0);
         uint8_t value = get_register_byte(target);
         sub_byte_with_overflow(value, false);
-        break;
+        return 1 + (target == ByteRegister::HL_INDIRECT);
     }
 
     case 0xC0:
@@ -517,8 +425,9 @@ void CPU::execute() {
         Condition::Condition cc = (Condition::Condition) ((opcode & 0b00011000) >> 3);
         if (evaluate_condition(cc)) {
             return_function();
+            return 5;
         }
-        break;
+        return 2;
     }
 
     case 0xC1:
@@ -535,11 +444,11 @@ void CPU::execute() {
         default: throw std::invalid_argument("Invalid WordRegister target for POP");
         }
 
-        uint8_t lsb = get_address_space_byte(registers.sp++);
-        uint8_t msb = get_address_space_byte(registers.sp++);
+        uint8_t lsb = gb->get_address_space_byte(registers.sp++);
+        uint8_t msb = gb->get_address_space_byte(registers.sp++);
         uint16_t value = (((uint16_t) msb) << 8) | lsb;
         set_register_word(target, value);
-        break;
+        return 3;
     }
 
     case 0xC2:
@@ -548,21 +457,23 @@ void CPU::execute() {
     case 0xDA: {
         // CONDITIONAL ABSOLUTE JUMP: 0b110cc010
         Condition::Condition cc = (Condition::Condition) ((opcode & 0b00011000) >> 3);
-        uint8_t lsb = get_address_space_byte(registers.pc++);
-        uint8_t msb = get_address_space_byte(registers.pc++);
-        uint8_t addr = (((uint16_t) msb) << 8) | lsb;
+        uint8_t lsb = gb->get_address_space_byte(registers.pc++);
+        uint8_t msb = gb->get_address_space_byte(registers.pc++);
+        uint16_t addr = (((uint16_t) msb) << 8) | lsb;
         if (evaluate_condition(cc)) {
             registers.pc = addr;
+            return 4;
         }
+        return 3;
     }
 
     case 0xC3: {
         // UNCONDITIONAL ABSOLUTE JUMP: 0b11000011
-        uint8_t lsb = get_address_space_byte(registers.pc++);
-        uint8_t msb = get_address_space_byte(registers.pc++);
+        uint8_t lsb = gb->get_address_space_byte(registers.pc++);
+        uint8_t msb = gb->get_address_space_byte(registers.pc++);
         uint16_t addr = (((uint16_t) msb) << 8) | lsb;
         registers.pc = addr;
-        break;
+        return 4;
     }
 
     case 0xC4:
@@ -571,13 +482,14 @@ void CPU::execute() {
     case 0xDC: {
         // CONDITIONAL CALL: 0b110cc100
         Condition::Condition cc = (Condition::Condition) ((opcode & 0b00011000) >> 3);
-        uint8_t addr_lsb = get_address_space_byte(registers.pc++);
-        uint8_t addr_msb = get_address_space_byte(registers.pc++);
+        uint8_t addr_lsb = gb->get_address_space_byte(registers.pc++);
+        uint8_t addr_msb = gb->get_address_space_byte(registers.pc++);
         uint16_t addr = (((uint16_t) addr_msb) << 8) | addr_lsb;
         if (evaluate_condition(cc)) {
             call_function(addr);
+            return 6;
         }
-        break;
+        return 3;
     }
 
     case 0xC5:
@@ -598,19 +510,19 @@ void CPU::execute() {
         uint8_t msb = (value >> 8) & 0xFF;
         uint8_t lsb = value & 0xFF;
 
-        set_address_space_byte(--registers.sp, msb);
-        set_address_space_byte(--registers.sp, lsb);
-        break;
+        gb->set_address_space_byte(--registers.sp, msb);
+        gb->set_address_space_byte(--registers.sp, lsb);
+        return 4;
     }
 
     case 0xC6:
     case 0xCE: {
         // ADD IMMEDIATE: 0b1100c110 (c = use carry)
-        uint8_t value = get_address_space_byte(registers.pc++);
+        uint8_t value = gb->get_address_space_byte(registers.pc++);
         bool use_carry = (opcode & 0b00001000) != 0;
         uint8_t result = add_byte_with_overflow(value, use_carry);
         set_register_byte(ByteRegister::A, result);
-        break;
+        return 2;
     }
 
     case 0xC7:
@@ -622,20 +534,22 @@ void CPU::execute() {
     case 0xF7:
     case 0xFF: {
         // RESTART / CALL FUNCTION (implied): 0b11xxx111
-        uint8_t addr = 0x08 * ((opcode & 0b00111000) >> 3);
+        uint8_t offset = ((opcode & 0b00111000) >> 3);
+        uint16_t addr = RST_VECTORS + (offset * 0x08);
         call_function(addr);
-        break;
+
+        return 4;
     }
 
     case 0xC9: {
         // UNCONDITIONAL RETURN FROM FUNC: 0b11001001
         return_function();
-        break;
+        return 4;
     }
 
     case 0xCB: {
         // CB: 0b11001011
-        uint8_t second_opcode = get_address_space_byte(registers.pc++);
+        uint8_t second_opcode = gb->get_address_space_byte(registers.pc++);
         ByteRegister::ByteRegister target = (ByteRegister::ByteRegister) (second_opcode & 0b00000111);
 
         switch (second_opcode) {
@@ -747,42 +661,42 @@ void CPU::execute() {
             break;
         }
         }
-        break;
+        return 2;
     }
 
     case 0xCD: {
         // UNCONDITIOANL CALL: 0b11001101
-        uint8_t addr_lsb = get_address_space_byte(registers.pc++);
-        uint8_t addr_msb = get_address_space_byte(registers.pc++);
-        uint8_t addr = (((uint16_t) addr_msb) << 8) | addr_lsb;
+        uint8_t addr_lsb = gb->get_address_space_byte(registers.pc++);
+        uint8_t addr_msb = gb->get_address_space_byte(registers.pc++);
+        uint16_t addr = (((uint16_t) addr_msb) << 8) | addr_lsb;
         call_function(addr);
-        break;
+        return 6;
     }
 
     case 0xD6:
     case 0xDE: {
         // SUBTRACT IMMEDIATE: 0b1101c110 (c = use carry)
-        uint8_t value = get_address_space_byte(registers.pc++);
+        uint8_t value = gb->get_address_space_byte(registers.pc++);
         bool use_carry = (opcode & 0b00001000) != 0;
         uint8_t result = sub_byte_with_overflow(value, use_carry);
         set_register_byte(ByteRegister::A, result);
-        break;
+        return 2;
     }
 
     case 0xD9: {
         // RETURN FROM INTERRUPT
+        ime_flag = true;
         return_function();
-        set_address_space_byte(IME_ADDR, 1);
-        break;
+        return 4;
     }
 
     case 0xE0: {
         // LD (0xFF00+IMMEDIATE) FROM ACCUMULATOR: 0b11100000
-        uint8_t offset = get_address_space_byte(registers.pc++);
+        uint8_t offset = gb->get_address_space_byte(registers.pc++);
         uint16_t addr = 0xFF00 + offset;
         uint8_t value = get_register_byte(ByteRegister::A);
-        set_address_space_byte(addr, value);
-        break;
+        gb->set_address_space_byte(addr, value);
+        return 3;
     }
 
     case 0xE2: {
@@ -790,20 +704,21 @@ void CPU::execute() {
         uint8_t offset = get_register_byte(ByteRegister::C);
         uint16_t addr = 0xFF00 + offset;
         uint8_t value = get_register_byte(ByteRegister::A);
-        set_address_space_byte(addr, value);
+        gb->set_address_space_byte(addr, value);
+        return 2;
     }
 
     case 0xE6: {
         // AND IMMEDIATE: 0b11100110
-        uint8_t value = get_address_space_byte(registers.pc++) & get_register_byte(ByteRegister::A);
+        uint8_t value = gb->get_address_space_byte(registers.pc++) & get_register_byte(ByteRegister::A);
         set_register_byte(ByteRegister::A, value);
         set_all_flags(value == 0, false, true, false);
-        break;
+        return 2;
     }
 
     case 0xE8: {
         // ADD SP,e
-        int8_t value = get_address_space_byte(registers.pc++);
+        int8_t value = gb->get_address_space_byte(registers.pc++);
         uint16_t current_value = get_register_word(WordRegister::SP);
         uint16_t result = current_value + value;
         set_register_word(WordRegister::SP, result);
@@ -811,69 +726,70 @@ void CPU::execute() {
         bool half_carry = current_value <= 0xF && result > 0xF;
         bool carry = current_value <= 0xFF && result > 0xFF;
         set_all_flags(false, false, half_carry, carry);
-        break;
+        return 4;
     }
 
     case 0xE9: {
         // UNCONDITIONAL JUMP TO HL: 0b11101001
         registers.pc = get_register_word(WordRegister::HL);
-        break;
+        return 1;
     }
 
     case 0xEA: {
         // LOAD ACCUMULATOR TO IMMEDIATE ADDR: 0b11101010
-        uint8_t lsb = get_address_space_byte(registers.pc++);
-        uint8_t msb = get_address_space_byte(registers.pc++);
+        uint8_t lsb = gb->get_address_space_byte(registers.pc++);
+        uint8_t msb = gb->get_address_space_byte(registers.pc++);
         uint16_t addr = (((uint16_t) msb) << 8) | lsb;
 
         uint8_t value = get_register_byte(ByteRegister::A);
-        set_address_space_byte(addr, value);
-        break;
+        gb->set_address_space_byte(addr, value);
+        return 4;
     }
 
     case 0xEE: {
         // XOR IMMEDIATE: 0b11101110
-        uint8_t value = get_address_space_byte(registers.pc++) ^ get_register_byte(ByteRegister::A);
+        uint8_t value = gb->get_address_space_byte(registers.pc++) ^ get_register_byte(ByteRegister::A);
         set_register_byte(ByteRegister::A, value);
         set_all_flags(value == 0, false, false, false);
-        break;
+        return 2;
     }
 
     case 0xF0: {
         // LOAD ACCUMULATOR FROM (0xFF00+IMMEDIATE): 0b11110000
-        uint8_t offset = get_address_space_byte(registers.pc++);
+        uint8_t offset = gb->get_address_space_byte(registers.pc++);
         uint16_t addr = 0xFF00 + offset;
-        uint8_t value = get_address_space_byte(addr);
+        uint8_t value = gb->get_address_space_byte(addr);
         set_register_byte(ByteRegister::A, value);
-        break;
+        return 3;
     }
 
     case 0xF2: {
         // LOAD ACCUMULATOR FROM (0xFF00+C): 0b11110010
         uint8_t offset = get_register_byte(ByteRegister::C);
         uint16_t addr = 0xFF00 + offset;
-        uint8_t value = get_address_space_byte(addr);
+        uint8_t value = gb->get_address_space_byte(addr);
         set_register_byte(ByteRegister::A, value);
-        break;
+        return 2;
     }
 
     case 0xF3: {
         // DISABLE INTERRUPTS: 0b11110011
-        set_address_space_byte(IME_ADDR, 0);
-        break;
+        // TODO: inaccurate. setting IME takes some time
+        ime_flag = false;
+        return 1;
     }
 
     case 0xF6: {
         // OR IMMEDIATE: 0b11110110
-        uint8_t value = get_address_space_byte(registers.pc++) | get_register_byte(ByteRegister::A);
+        uint8_t value = gb->get_address_space_byte(registers.pc++) | get_register_byte(ByteRegister::A);
         set_register_byte(ByteRegister::A, value);
         set_all_flags(value == 0, false, false, false);
-        break;
+        return 2;
     }
 
     case 0xF8: {
         // LOAD HL WITH SP+offset
-        int8_t value = (int8_t) get_address_space_byte(registers.pc++);
+        int8_t value = (int8_t) gb->get_address_space_byte(registers.pc++);
         uint16_t current_value = get_register_word(WordRegister::SP);
         uint16_t result = current_value + value;
         set_register_word(WordRegister::HL, result);
@@ -881,43 +797,169 @@ void CPU::execute() {
         bool half_carry = current_value <= 0xF && result > 0xF;
         bool carry = current_value <= 0xFF && result > 0xFF;
         set_all_flags(false, false, half_carry, carry);
-        break;
+        return 3;
     }
 
     case 0xF9: {
         // LOAD SP FROM HL WORD
         uint16_t value = get_register_word(WordRegister::HL);
         set_register_word(WordRegister::SP, value);
-        break;
+        return 2;
     }
 
     case 0xFA: {
         // LOAD ACCUMULATOR ABSOLUTE: 0b11111010
-        uint8_t lsb = get_address_space_byte(registers.pc++);
-        uint8_t msb = get_address_space_byte(registers.pc++);
+        uint8_t lsb = gb->get_address_space_byte(registers.pc++);
+        uint8_t msb = gb->get_address_space_byte(registers.pc++);
         uint16_t addr = (((uint16_t) msb) << 8) | lsb;
-        uint8_t value = get_address_space_byte(addr);
+        uint8_t value = gb->get_address_space_byte(addr);
         set_register_byte(ByteRegister::A, value);
-        break;
+        return 4;
     }
 
     case 0xFB: {
         // ENABLE INTERRUPTS: 0b11111011
-        set_address_space_byte(IME_ADDR, 1);// TODO: this should enabled after the next cycle
-        break;
+        // TODO: inaccurate. setting IME takes some time
+        ime_flag = true;
+        return 1;
     }
 
     case 0xFE: {
         // COMPARE IMMEDIATE WITH ACCUMULATOR: 0b11111110
-        uint8_t value = get_address_space_byte(registers.pc++);
+        uint8_t value = gb->get_address_space_byte(registers.pc++);
         sub_byte_with_overflow(value, false);
-        break;
+        return 2;
     }
 
     default: {
         throw std::invalid_argument("Unknown opcode " + opcode);
+        return 1;
+    }
+    }
+}
+
+uint8_t CPU::check_for_interrupts() {
+    if (!ime_flag) {
+        return 0;
     }
 
-    registers.pc++;
+    uint8_t pending_interrupts = gb->address_space[IE] & gb->address_space[IF] & 0x1F;
+    int lowest_set_bit_index = __builtin_ctz(pending_interrupts);
+    if (lowest_set_bit_index < 8) {
+        uint16_t addr = INTERRUPT_VECTORS + lowest_set_bit_index * 0x8;
+        ime_flag = false;
+        call_function(addr);
+
+        gb->address_space[IF] = 0;
+        return 5;
     }
+
+    return 0;
+}
+
+void CPU::set_all_flags(bool zero, bool subtraction, bool half_carry, bool carry) {
+    registers.flags.zero = zero;
+    registers.flags.subtraction = subtraction;
+    registers.flags.half_carry = half_carry;
+    registers.flags.carry = carry;
+}
+
+uint8_t CPU::get_register_byte(ByteRegister::ByteRegister target) {
+    switch (target) {
+    case ByteRegister::A: return registers.a;
+    case ByteRegister::B: return registers.b;
+    case ByteRegister::C: return registers.c;
+    case ByteRegister::D: return registers.d;
+    case ByteRegister::E: return registers.e;
+    case ByteRegister::H: return registers.h;
+    case ByteRegister::L: return registers.l;
+    case ByteRegister::HL_INDIRECT: return gb->get_address_space_byte(registers.hl());
+    default: throw std::invalid_argument("Invalid register target " + target);
+    }
+}
+
+void CPU::set_register_byte(ByteRegister::ByteRegister target, uint8_t value) {
+    switch (target) {
+    case ByteRegister::A: registers.a = value; break;
+    case ByteRegister::B: registers.b = value; break;
+    case ByteRegister::C: registers.c = value; break;
+    case ByteRegister::D: registers.d = value; break;
+    case ByteRegister::E: registers.e = value; break;
+    case ByteRegister::H: registers.h = value; break;
+    case ByteRegister::L: registers.l = value; break;
+    case ByteRegister::HL_INDIRECT: gb->set_address_space_byte(registers.hl(), value); break;
+    default: throw std::invalid_argument("Invalid register target " + target);
+    }
+}
+
+uint16_t CPU::get_register_word(WordRegister::WordRegister target) {
+    switch (target) {
+    case WordRegister::BC: return registers.bc();
+    case WordRegister::DE: return registers.de();
+    case WordRegister::HL: return registers.hl();
+    case WordRegister::SP: return registers.sp;
+    case WordRegister::AF: return registers.af();
+    default: throw std::invalid_argument("Invalid register target " + target);
+    }
+}
+
+void CPU::set_register_word(WordRegister::WordRegister target, uint16_t value) {
+    switch (target) {
+    case WordRegister::BC: registers.set_bc(value); break;
+    case WordRegister::DE: registers.set_de(value); break;
+    case WordRegister::HL: registers.set_hl(value); break;
+    case WordRegister::SP: registers.sp = value; break;
+    case WordRegister::AF: registers.set_af(value); break;
+    default: throw std::invalid_argument("Invalid register target " + target);
+    }
+}
+
+uint8_t CPU::add_byte_with_overflow(uint8_t value, bool add_carry) {
+    uint8_t current_value = registers.a;
+    uint8_t result = current_value + value + (add_carry && registers.flags.carry);
+
+    bool half_carry = (value & 0xF) + (current_value & 0xF) > 0xF;
+    bool carry = result < value || result < current_value;
+    set_all_flags(result == 0, false, half_carry, carry);
+    return result;
+}
+
+uint8_t CPU::sub_byte_with_overflow(uint8_t value, bool sub_carry) {
+    uint8_t current_value = registers.a;
+    uint8_t result = current_value - value - (sub_carry && registers.flags.carry);
+
+    bool half_carry = (value & 0xF) + (current_value & 0xF) > 0xF;
+    bool carry = current_value < value;
+    set_all_flags(result == 0, true, half_carry, carry);
+    return result;
+}
+
+bool CPU::evaluate_condition(Condition::Condition cc) {
+    switch (cc) {
+    case Condition::NONZERO: return !registers.flags.zero;
+    case Condition::ZERO: return registers.flags.zero;
+    case Condition::NOCARRY: return !registers.flags.carry;
+    case Condition::CARRY: return registers.flags.carry;
+    default: throw std::invalid_argument("Unknown conditional value " + cc);
+    }
+}
+
+void CPU::call_function(uint16_t address) {
+    uint8_t pc_msb = (registers.pc >> 8) & 0xFF;
+    uint8_t pc_lsb = registers.pc & 0xFF;
+    gb->set_address_space_byte(--registers.sp, pc_msb);
+    gb->set_address_space_byte(--registers.sp, pc_lsb);
+
+    registers.pc = address;
+}
+
+void CPU::return_function() {
+    uint8_t lsb = gb->get_address_space_byte(registers.sp++);
+    uint8_t msb = gb->get_address_space_byte(registers.sp++);
+    uint16_t addr = (((uint16_t) msb) << 8) | lsb;
+    registers.pc = addr;
+}
+
+void CPU::reset() {
+    registers.clear();
 }

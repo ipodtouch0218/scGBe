@@ -14,7 +14,7 @@ SOURCES := $(wildcard $(SRCDIR)/*.$(SRCEXT))
 OBJECTS := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.o))
 
 # Flags
-CFLAGS := -I$(INCDIR) -I$(MINGW_INCDIR) -lstdc++ -IC:/msys-w64
+CFLAGS := -I$(INCDIR) -I$(MINGW_INCDIR) -lstdc++ -IC:/msys-w64 -O3
 
 # Output binary
 TARGET := myprogram

@@ -1,95 +1,46 @@
-#pragma once 
+#pragma once
 #include <stdint.h>
 
-struct Flags {
-    bool zero, subtraction, half_carry, carry;
+// Joypad inputs
+constexpr uint16_t JOYP = 0xFF00;
 
-    uint8_t to_byte() const {
-        uint8_t result = 0;
-        result |= zero << 7;
-        result |= subtraction << 6;
-        result |= half_carry << 5;
-        result |= carry << 4;
-        return result;
-    }
+// Timer stuff
+constexpr uint16_t DIV = 0xFF04;
+constexpr uint16_t TIMA = 0xFF05;
+constexpr uint16_t TMA = 0xFF06;
+constexpr uint16_t TAC = 0xFF07;
 
-    static Flags from_byte(uint8_t value) {
-        Flags flags;
-        flags.zero = (value & (1 << 7)) != 0;
-        flags.subtraction = (value & (1 << 6)) != 0;
-        flags.half_carry = (value & (1 << 5)) != 0;
-        flags.carry = (value & (1 << 4)) != 0;
-        return flags;
-    }
-};
+// PPU stuff
+constexpr uint16_t LCDC = 0xFF40;
+constexpr uint16_t STAT = 0xFF41;
+constexpr uint16_t LY = 0xFF44;
+constexpr uint16_t LYC = 0xFF45;
+constexpr uint16_t DMA = 0xFF46;
 
-struct Registers {
-    uint8_t a, b, c, d, e, h, l;
-    uint16_t sp, pc;
-    Flags flags;
+// APU stuff
+constexpr uint16_t SND_P1_SW = 0xFF10;
+constexpr uint16_t SND_P1_LD = 0xFF11;
+constexpr uint16_t SND_P1_VE = 0xFF12;
+constexpr uint16_t SND_P1_PLOW = 0xFF13;
+constexpr uint16_t SND_P1_PHI = 0xFF14;
+constexpr uint16_t SND_P2_LD = 0xFF16;
+constexpr uint16_t SND_P2_VE = 0xFF17;
+constexpr uint16_t SND_P2_PERLOW = 0xFF18;
+constexpr uint16_t SND_P2_PERHI = 0xFF19;
+constexpr uint16_t SND_WV_EN = 0xFF1A;
+constexpr uint16_t SND_WV_LEN = 0xFF1B;
+constexpr uint16_t SND_WV_VOL = 0xFF1C;
+constexpr uint16_t SND_WV_PERLOW = 0xFF1D;
+constexpr uint16_t SND_WV_PERHI = 0xFF1E;
+constexpr uint16_t SND_WV_TABLE = 0xFF30;
+constexpr uint16_t SND_NS_LEN = 0xFF20;
+constexpr uint16_t SND_NS_VOL = 0xFF21;
+constexpr uint16_t SND_NS_FREQ = 0xFF22;
+constexpr uint16_t SND_NS_CTRL = 0xFF23;
+constexpr uint16_t NR50 = 0xFF24;
+constexpr uint16_t NR51 = 0xFF25;
+constexpr uint16_t NR52 = 0xFF26;
 
-    // F sepcial register
-    uint8_t f() const {
-        return flags.to_byte();
-    }
-
-    void set_f(uint8_t value) {
-        flags = Flags::from_byte(value);
-    }
-
-    // AF combined register
-
-    uint16_t af() const {
-        return ((uint16_t) a) << 8 | f();
-    }
-
-    void set_af(uint16_t value) {
-        a = (uint8_t) (value >> 8);
-        set_f((uint8_t) value);
-    }
-
-    // BC combined register
-    uint16_t bc() const {
-        return ((uint16_t) b) << 8 | ((uint16_t) c);
-    }
-
-    void set_bc(uint16_t value) {
-        b = (uint8_t) (value >> 8);
-        c = (uint8_t) (value);
-    }
-
-    // DE combined register
-
-    uint16_t de() const {
-        return ((uint16_t) d) << 8 | ((uint16_t) e);
-    }
-
-    void set_de(uint16_t value) {
-        d = (uint8_t) (value >> 8);
-        e = (uint8_t) (value);
-    }
-
-    // HL combined register
-
-    uint16_t hl() const {
-        return ((uint16_t) h) << 8 | ((uint16_t) l);
-    }
-
-    void set_hl(uint16_t value) {
-        h = (uint8_t) (value >> 8);
-        l = (uint8_t) (value);
-    }
-
-    void clear() {
-        a = 0;
-        b = 0;
-        c = 0;
-        d = 0;
-        e = 0;
-        flags = Flags::from_byte(0);
-        h = 0;
-        l = 0;
-        sp = 0xFFFE;
-        pc = 0x100;
-    }
-};
+// Interrupt stuff
+constexpr uint16_t IF = 0xFF0F;
+constexpr uint16_t IE = 0xFFFF;
