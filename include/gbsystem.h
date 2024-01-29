@@ -19,20 +19,22 @@ class GBSystem {
 
     protected:
     CPU _cpu = CPU(this);
-    PPU _lcd = PPU(this);
+    PPU _ppu = PPU(this);
 
     public:
     uint32_t clock_speed = 4194304;
     uint32_t cycles = 0;
     uint8_t timer_cycles = 0;
     uint8_t dma_counter = 0;
+    uint64_t frame_number = 0;
 
     uint8_t address_space[0xFFFF];
 
+    uint8_t current_joypad_buttons = 0xFF;
 
     GBSystem(uint32_t clock_speed);
 
-    void tick();
+    bool tick();
 
     void reset();
 
@@ -44,6 +46,6 @@ class GBSystem {
     }
 
     PPU& ppu() {
-        return _lcd;
+        return _ppu;
     }
 };

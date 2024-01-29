@@ -4,6 +4,8 @@
 #include <cstring>
 #include "registers.h"
 
+extern uint8_t joypad_buttons;
+
 GBSystem::GBSystem(uint32_t clock_speed) {
     this->clock_speed = clock_speed;
 }
@@ -18,9 +20,8 @@ void GBSystem::reset() {
     memset(address_space + 0x8000, 0, 0xFFFF-0x8000); // Clear RAM
 }
 
-void GBSystem::tick() {
-    cycles++;
-    cycles %= clock_speed;
+bool GBSystem::tick() {
+
 
     // PPU
     ppu().tick();
@@ -67,6 +68,13 @@ void GBSystem::tick() {
     if (cycles % 4 == 0) {
         cpu().tick();
     }
+
+    if (++cycles == (int) (clock_speed / 59.7275)) {
+        cycles = 0;
+        frame_number++;
+        return true;
+    }
+    return false;
 }
 
 uint8_t GBSystem::get_address_space_byte(uint16_t addr) {
@@ -78,13 +86,34 @@ uint8_t GBSystem::get_address_space_byte(uint16_t addr) {
     if (dma_counter > 0 && addr < 0xFF80) {
         return 0xFF;
     }
-    // Cannot access vram during rendering mode 3
-    if (addr >= 0x8000 && addr <= 0x9FFF && ppu().mode == LCDDrawMode::DRAWING) {
-        return 0xFF;
+    if (ppu().enabled()) {
+        // Cannot access vram during rendering mode 3
+        if (addr >= 0x8000 && addr <= 0x9FFF && ppu().mode == LCDDrawMode::DRAWING) {
+            return 0xFF;
+        }
+        // Cannot access OAM during rendering modes 2 / 3
+        if (addr >= 0xFE00 && addr <= 0xFE9F && (ppu().mode == LCDDrawMode::DRAWING || ppu().mode == LCDDrawMode::OAM_SCAN)) {
+            return 0xFF;
+        }
     }
-    // Cannot access OAM during rendering modes 2 / 3
-    if (addr >= 0xFE00 && addr <= 0xFE9F && (ppu().mode == LCDDrawMode::DRAWING || ppu().mode == LCDDrawMode::OAM_SCAN)) {
-        return 0xFF;
+    if (addr == JOYP) {
+        // Joypad register
+        uint8_t joypad_register = address_space[addr];
+        uint8_t results;
+        switch ((joypad_register & 0b00110000) >> 4) {
+        case 1: {
+            // Dpad buttons
+            results = (joypad_buttons >> 4) & 0xF;
+            break;
+        }
+        case 2: {
+            // Other buttons
+            results = joypad_buttons & 0xF;
+            break;
+        }
+        default: results = 0xF; break;
+        }
+        return joypad_register | results;
     }
 
     // std::cout << "[R] 0x" << std::hex << (int) addr << " -> " << (int) address_space[addr] << std::endl;
@@ -107,14 +136,17 @@ void GBSystem::set_address_space_byte(uint16_t addr, uint8_t value) {
     if (dma_counter > 0 && addr < 0xFF80) {
         return;
     }
-    // Cannot access vram during rendering mode 3
-    if (addr >= 0x8000 && addr <= 0x9FFF && ppu().mode == LCDDrawMode::DRAWING) {
-        return;
+    if (ppu().enabled()) {
+        // Cannot access vram during rendering mode 3
+        if (addr >= 0x8000 && addr <= 0x9FFF && ppu().mode == LCDDrawMode::DRAWING) {
+            return;
+        }
+        // Cannot access OAM during rendering modes 2 / 3
+        if (addr >= 0xFE00 && addr <= 0xFE9F && (ppu().mode == LCDDrawMode::DRAWING || ppu().mode == LCDDrawMode::OAM_SCAN)) {
+            return;
+        }
     }
-    // Cannot access OAM during rendering modes 2 / 3
-    if (addr >= 0xFE00 && addr <= 0xFE9F && (ppu().mode == LCDDrawMode::DRAWING || ppu().mode == LCDDrawMode::OAM_SCAN)) {
-        return;
-    }
+
 
     if (addr >= 0xE000 && addr <= 0xFDFF) {
         // ERAM support:

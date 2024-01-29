@@ -27,11 +27,6 @@ uint8_t CPU::execute() {
     }
 
     uint8_t opcode = gb->get_address_space_byte(registers.pc++);
-    //std::cout << "[" << (int) gb->cycles << "] Executing at 0x" << std::hex << (int) (registers.pc - 1) << " opcode 0x" << std::hex << (int) opcode << '\n';
-
-    if (gb->cycles == 0) {
-        std::cout << "New frame!" << std::endl;
-    }
 
     switch (opcode) {
     case 0x00: {
@@ -181,7 +176,7 @@ uint8_t CPU::execute() {
         uint16_t result = current_value + value;
         set_register_word(WordRegister::HL, result);
         registers.flags.subtraction = false;
-        registers.flags.half_carry = current_value <= 0xFFF && result > 0xFFF; // TODO: is this correct?
+        registers.flags.half_carry = ((value & 0xFFF) + (current_value) & 0xFFF) > 0xFFF;
         registers.flags.carry = result < value || result < current_value;
         return 2;
     }
@@ -289,30 +284,29 @@ uint8_t CPU::execute() {
     case 0x27: {
         // DECIMAL ADJUST ACCUMULATOR: 0b00100111
         // Source: https://forums.nesdev.org/viewtopic.php?t=15944
-
         uint8_t value = get_register_byte(ByteRegister::A);
 
-        if (!registers.flags.subtraction) {
-            // after an addition, adjust if (half-)carry occurred or if result is out of bounds
-            if (registers.flags.carry || value > 0x99) {
-                value += 0x60;
-                registers.flags.carry = true;
+        if (registers.flags.subtraction) {
+            if (registers.flags.half_carry) {
+                value += 0xFA;
             }
-            if (registers.flags.half_carry || (value & 0x0f) > 0x09) {
-                value += 0x6;
+            if (registers.flags.carry) {
+                value += 0xA0;
             }
         } else {
-            // after a subtraction, only adjust if (half-)carry occurred
-            if (registers.flags.carry) {
-                value -= 0x60;
+            if (registers.flags.half_carry || (value & 0xF) > 0x9) {
+                value += 0x06;
             }
-            if (registers.flags.half_carry) {
-                value -= 0x6;
+            if (registers.flags.carry || (value & 0xF0) > 0x90) {
+                value += 0x60;
+                registers.flags.carry = true;
+            } else {
+                registers.flags.carry = false;
             }
         }
 
         registers.flags.zero = (value == 0);
-        registers.flags.half_carry = false;
+        registers.flags.subtraction = false;
         return 1;
     }
 
@@ -641,7 +635,7 @@ uint8_t CPU::execute() {
             uint8_t value = get_register_byte(target) & mask;
             registers.flags.zero = value == 0;
             registers.flags.subtraction = false;
-            registers.flags.half_carry = 1;
+            registers.flags.half_carry = true;
             break;
         }
         case 0x80 ... 0xBF: {
@@ -723,8 +717,8 @@ uint8_t CPU::execute() {
         uint16_t result = current_value + value;
         set_register_word(WordRegister::SP, result);
 
-        bool half_carry = current_value <= 0xF && result > 0xF;
-        bool carry = current_value <= 0xFF && result > 0xFF;
+        bool half_carry = ((value & 0xF) + (current_value & 0xF)) > 0xF;
+        bool carry = ((value & 0xFF) + (current_value) & 0xFF) > 0xFF;
         set_all_flags(false, false, half_carry, carry);
         return 4;
     }
@@ -794,8 +788,8 @@ uint8_t CPU::execute() {
         uint16_t result = current_value + value;
         set_register_word(WordRegister::HL, result);
 
-        bool half_carry = current_value <= 0xF && result > 0xF;
-        bool carry = current_value <= 0xFF && result > 0xFF;
+        bool half_carry = ((value & 0xF) + (current_value & 0xF)) > 0xF;
+        bool carry = ((value & 0xFF) + (current_value) & 0xFF) > 0xFF;
         set_all_flags(false, false, half_carry, carry);
         return 3;
     }
@@ -918,7 +912,7 @@ uint8_t CPU::add_byte_with_overflow(uint8_t value, bool add_carry) {
     uint8_t current_value = registers.a;
     uint8_t result = current_value + value + (add_carry && registers.flags.carry);
 
-    bool half_carry = (value & 0xF) + (current_value & 0xF) > 0xF;
+    bool half_carry = ((value & 0xF) + (current_value & 0xF)) > 0xF;
     bool carry = result < value || result < current_value;
     set_all_flags(result == 0, false, half_carry, carry);
     return result;
@@ -928,7 +922,7 @@ uint8_t CPU::sub_byte_with_overflow(uint8_t value, bool sub_carry) {
     uint8_t current_value = registers.a;
     uint8_t result = current_value - value - (sub_carry && registers.flags.carry);
 
-    bool half_carry = (value & 0xF) + (current_value & 0xF) > 0xF;
+    bool half_carry = ((value & 0xF) + (current_value & 0xF)) > 0xF;
     bool carry = current_value < value;
     set_all_flags(result == 0, true, half_carry, carry);
     return result;

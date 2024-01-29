@@ -13,16 +13,21 @@ constexpr uint16_t TAC = 0xFF07;
 // PPU stuff
 constexpr uint16_t LCDC = 0xFF40;
 constexpr uint16_t STAT = 0xFF41;
+constexpr uint16_t SCY = 0xFF42;
+constexpr uint16_t SCX = 0xFF43;
 constexpr uint16_t LY = 0xFF44;
 constexpr uint16_t LYC = 0xFF45;
 constexpr uint16_t DMA = 0xFF46;
+constexpr uint16_t BGP = 0xFF47;
+constexpr uint16_t OBP0 = 0xFF48;
+constexpr uint16_t OBP1 = 0xFF49;
 
 // APU stuff
 constexpr uint16_t SND_P1_SW = 0xFF10;
 constexpr uint16_t SND_P1_LD = 0xFF11;
 constexpr uint16_t SND_P1_VE = 0xFF12;
-constexpr uint16_t SND_P1_PLOW = 0xFF13;
-constexpr uint16_t SND_P1_PHI = 0xFF14;
+constexpr uint16_t SND_P1_PERLOW = 0xFF13;
+constexpr uint16_t SND_P1_PERHI = 0xFF14;
 constexpr uint16_t SND_P2_LD = 0xFF16;
 constexpr uint16_t SND_P2_VE = 0xFF17;
 constexpr uint16_t SND_P2_PERLOW = 0xFF18;

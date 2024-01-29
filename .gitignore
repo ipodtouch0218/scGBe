@@ -2,3 +2,9 @@
 *.exe
 /build
 /.vscode
+/CMakeFiles
+/lib
+*.cmake
+/bin
+/_deps
+CMakeCache.txt
