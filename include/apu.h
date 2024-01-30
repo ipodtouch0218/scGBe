@@ -15,6 +15,7 @@ class APU {
     public:
     GBSystem* gb;
     uint8_t div_apu = 0;
+    uint8_t last_div = 0;
 
     uint16_t ch1_timer = 0;
     uint8_t ch1_pulse_index = 0;

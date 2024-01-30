@@ -11,13 +11,22 @@ APU::APU(GBSystem* gb) {
 
 void APU::tick() {
     uint8_t div = gb->address_space[DIV];
-
     bool div_apu_updated = false;
 
-    // Falling edge of bit 4 / 5 (dmg / cgb)
-    if ((gb->cycles % 256 == 0) && (div % (1 << 4 + gb->cgb()) == 0)) {
-        div_apu++;
-        div_apu_updated = true;
+    if (div != last_div) {
+        // Falling edge of bit 4 / 5 (dmg / cgb)
+
+        uint8_t div_bit;
+        if (gb->cgb()) {
+            div_bit = 0x40;
+        } else {
+            div_bit = 0x20;
+        }
+        if (div % div_bit == 0) {
+            div_apu++;
+            div_apu_updated = true;
+        }
+        last_div = div;
     }
 
     handle_pulse_channel_1(div_apu_updated);
@@ -44,40 +53,54 @@ void APU::handle_pulse_channel_1(bool div_apu_updated) {
     period |= gb->address_space[SND_P1_PER_LOW];
 
     if (div_apu_updated) {
-        // if (div_apu % 8 == 0) {
-        //     // Envelope Sweep
-        //     uint8_t envelope_register = gb->address_space[SND_P1_VOL_ENV];
-        //     int8_t envelope = (int8_t) (envelope_register & 0b111);
-        //     if (envelope != 0) {
-        //         int8_t direction = ((envelope_register >> 3) & 1) * 2 - 1;
-        //         if (!((ch1_volume == 0xF && direction == 1) || (ch1_volume == 0x0 && direction == -1))) {
-        //             ch1_volume += direction;
-        //         }
-        //     }
-        // }
+        uint8_t envelope_sweep_register = gb->address_space[SND_P1_VOL_ENV];
+        uint8_t envelope_sweep_pace = (uint8_t) (envelope_sweep_register & 0b111);
+        if (envelope_sweep_pace != 0 && div_apu % 8 == 0) {
+            // Envelope Sweep
+            if (ch1_envelope_timer-- == 0) {
+                bool negate = (envelope_sweep_register & (1 << 3)) == 0;
+                if (negate && ch1_volume == 0) {
+                    ch1_volume--;
+                } else if (!negate && ch1_volume != 15) {
+                    ch1_volume++;
+                }
+                ch1_envelope_timer = envelope_sweep_pace;
+            }
+        }
         bool length_enable = (gb->address_space[SND_P1_PER_HI] & (1 << 6)) != 0;
         if (length_enable && div_apu % 2 == 0) {
             // Sound length
-            if (++ch1_length == 64) {
+            if (++ch1_length >= 64) {
                 ch1_volume = 0;
+                ch1_length = 64;
                 return;
             }
         }
-        // if (div_apu % 4 == 0) {
-        //     // Frequency sweep
-        //     uint8_t period_sweep_register = gb->address_space[SND_P1_SWEEP];
-        //     uint16_t step = period_sweep_register & 0b111;
-        //     int16_t direction = (((period_sweep_register >> 3) & 0b1) == 0) * 2 - 1;
-        //     uint8_t pace = (period_sweep_register >> 4) & 0b111;
+        uint8_t freq_sweep_register = gb->address_space[SND_P1_SWEEP];
+        uint8_t freq_sweep_pace = (freq_sweep_register & 0b1110000) >> 4;
+        if (freq_sweep_pace != 0 && div_apu % 4 == 0) {
+            // Frequency sweep
 
-        //     if (ch1_sweep_timer-- == 0) {
-        //         ch1_sweep_timer = pace;
-        //         period = period + direction * (period / (2 << step));
+            if (ch1_sweep_timer-- == 0) {
+                uint8_t step = freq_sweep_register & 0b111;
+                bool negate = (freq_sweep_register & (1 << 3)) != 0;
+                uint16_t new_frequency = period >> step;
+                if (negate) {
+                    period -= new_frequency;
+                } else {
+                    period += new_frequency;
+                }
 
-        //         gb->address_space[SND_P1_PER_HI] = (gb->address_space[SND_P1_PER_HI] & 0xF0) | (period >> 8);
-        //         gb->address_space[SND_P1_PER_LOW] = period & 0xFF;
-        //     }
-        // }
+                gb->address_space[SND_P1_PER_HI] = (gb->address_space[SND_P1_PER_HI] & 0xF0) | (period >> 8);
+                gb->address_space[SND_P1_PER_LOW] = period & 0xFF;
+
+                if (period > 0x800) {
+                    ch1_volume = 0;
+                    ch1_length = 64;
+                }
+                ch1_sweep_timer = freq_sweep_pace;
+            }
+        }
     }
 
     if (--ch1_timer == 0) {
@@ -109,25 +132,30 @@ void APU::handle_pulse_channel_2(bool div_apu_updated) {
     period |= gb->address_space[SND_P2_PER_LOW];
 
     if (div_apu_updated) {
-        // if (div_apu % 8 == 0) {
-        //     // Envelope (volume) Sweep
-        //     uint8_t envelope_register = gb->address_space[SND_P1_VOL_ENV];
-        //     int8_t envelope = (int8_t) (envelope_register & 0b111);
-        //     if (envelope != 0) {
-        //         int8_t direction = ((envelope_register >> 3) & 1) * 2 - 1;
-        //         if (!((ch1_volume == 0xF && direction == 1) || (ch1_volume == 0x0 && direction == -1))) {
-        //             ch1_volume += direction;
-        //         }
-        //     }
-        // }
-        // bool length_enable = (gb->address_space[SND_P2_PER_HI] & (1 << 6)) != 0;
-        // if (length_enable && div_apu % 2 == 0) {
-        //     // Sound length
-        //     if (++ch2_length == 64) {
-        //         ch2_volume = 0;
-        //         return;
-        //     }
-        // }
+        uint8_t envelope_sweep_register = gb->address_space[SND_P2_VOL_ENV];
+        uint8_t envelope_sweep_pace = (uint8_t) (envelope_sweep_register & 0b111);
+        if (envelope_sweep_pace != 0 && div_apu % 8 == 0) {
+            // Envelope Sweep
+            if (ch2_envelope_timer-- == 0) {
+                bool negate = (envelope_sweep_register & 0b1000) == 0;
+                if (negate && ch2_volume == 0) {
+                    ch2_volume--;
+                } else if (!negate && ch2_volume != 15) {
+                    ch2_volume++;
+                }
+                ch2_envelope_timer = envelope_sweep_pace;
+            }
+        }
+        bool length_enable = (gb->address_space[SND_P2_PER_HI] & (1 << 6)) != 0;
+        if (length_enable && div_apu % 2 == 0) {
+            // Sound length
+            std::cout << (int) ch2_length << std::endl;
+            if (++ch2_length >= 64) {
+                ch2_volume = 0;
+                ch2_length = 64;
+                return;
+            }
+        }
     }
 
     if (--ch2_timer == 0) {
