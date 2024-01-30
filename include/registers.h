@@ -23,15 +23,15 @@ constexpr uint16_t OBP0 = 0xFF48;
 constexpr uint16_t OBP1 = 0xFF49;
 
 // APU stuff
-constexpr uint16_t SND_P1_SW = 0xFF10;
-constexpr uint16_t SND_P1_LD = 0xFF11;
-constexpr uint16_t SND_P1_VE = 0xFF12;
-constexpr uint16_t SND_P1_PERLOW = 0xFF13;
-constexpr uint16_t SND_P1_PERHI = 0xFF14;
-constexpr uint16_t SND_P2_LD = 0xFF16;
-constexpr uint16_t SND_P2_VE = 0xFF17;
-constexpr uint16_t SND_P2_PERLOW = 0xFF18;
-constexpr uint16_t SND_P2_PERHI = 0xFF19;
+constexpr uint16_t SND_P1_SWEEP = 0xFF10;
+constexpr uint16_t SND_P1_LEN_DUTY = 0xFF11;
+constexpr uint16_t SND_P1_VOL_ENV = 0xFF12;
+constexpr uint16_t SND_P1_PER_LOW = 0xFF13;
+constexpr uint16_t SND_P1_PER_HI = 0xFF14;
+constexpr uint16_t SND_P2_LEN_DUTY = 0xFF16;
+constexpr uint16_t SND_P2_VOL_ENV = 0xFF17;
+constexpr uint16_t SND_P2_PER_LOW = 0xFF18;
+constexpr uint16_t SND_P2_PER_HI = 0xFF19;
 constexpr uint16_t SND_WV_EN = 0xFF1A;
 constexpr uint16_t SND_WV_LEN = 0xFF1B;
 constexpr uint16_t SND_WV_VOL = 0xFF1C;

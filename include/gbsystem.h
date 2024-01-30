@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include "apu.h"
 #include "cpu.h"
 #include "ppu.h"
 
@@ -20,10 +21,13 @@ class GBSystem {
     protected:
     CPU _cpu = CPU(this);
     PPU _ppu = PPU(this);
+    APU _apu = APU(this);
+    bool _cgb = false;
 
     public:
     uint32_t clock_speed = 4194304;
-    uint32_t cycles = 0;
+    uint64_t cycles = 0;
+    uint64_t frame_cycles = 0;
     uint8_t timer_cycles = 0;
     uint8_t dma_counter = 0;
     uint64_t frame_number = 0;
@@ -32,7 +36,7 @@ class GBSystem {
 
     uint8_t current_joypad_buttons = 0xFF;
 
-    GBSystem(uint32_t clock_speed);
+    GBSystem(bool cgb);
 
     bool tick();
 
@@ -47,5 +51,13 @@ class GBSystem {
 
     PPU& ppu() {
         return _ppu;
+    }
+
+    APU& apu() {
+        return _apu;
+    }
+
+    bool cgb() {
+        return _cgb;
     }
 };

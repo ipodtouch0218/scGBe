@@ -271,6 +271,30 @@ sfml-audio/fast:
 	$(MAKE) $(MAKESILENT) -f _deps\sfml-build\src\SFML\Audio\CMakeFiles\sfml-audio.dir\build.make _deps/sfml-build/src/SFML/Audio/CMakeFiles/sfml-audio.dir/build
 .PHONY : sfml-audio/fast
 
+src/apu.obj: src/apu.cpp.obj
+.PHONY : src/apu.obj
+
+# target to build an object file
+src/apu.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/apu.cpp.obj
+.PHONY : src/apu.cpp.obj
+
+src/apu.i: src/apu.cpp.i
+.PHONY : src/apu.i
+
+# target to preprocess a source file
+src/apu.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/apu.cpp.i
+.PHONY : src/apu.cpp.i
+
+src/apu.s: src/apu.cpp.s
+.PHONY : src/apu.s
+
+# target to generate assembly for a file
+src/apu.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/apu.cpp.s
+.PHONY : src/apu.cpp.s
+
 src/cpu.obj: src/cpu.cpp.obj
 .PHONY : src/cpu.obj
 
@@ -388,6 +412,9 @@ help:
 	@echo ... sfml-network
 	@echo ... sfml-system
 	@echo ... sfml-window
+	@echo ... src/apu.obj
+	@echo ... src/apu.i
+	@echo ... src/apu.s
 	@echo ... src/cpu.obj
 	@echo ... src/cpu.i
 	@echo ... src/cpu.s

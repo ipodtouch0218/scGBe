@@ -6,8 +6,9 @@
 
 extern uint8_t joypad_buttons;
 
-GBSystem::GBSystem(uint32_t clock_speed) {
-    this->clock_speed = clock_speed;
+GBSystem::GBSystem(bool cgb) {
+    _cgb = cgb;
+    clock_speed = clock_speed * (cgb + 1);
 }
 
 void GBSystem::reset() {
@@ -22,13 +23,9 @@ void GBSystem::reset() {
 
 bool GBSystem::tick() {
 
-
-    // PPU
-    ppu().tick();
-
     // Timer
     // TODO: implement https://gbdev.io/pandocs/Timer_Obscure_Behaviour.html
-    if (cycles % 256) {
+    if (cycles % 256 == 0) {
         address_space[DIV]++;
     }
     uint8_t tac_register = address_space[TAC];
@@ -53,6 +50,12 @@ bool GBSystem::tick() {
         }
     }
 
+    // PPU
+    ppu().tick();
+
+    // APU
+    apu().tick();
+
     // DMA
     if (dma_counter > 0) {
         uint8_t addr_msb = address_space[DMA];
@@ -69,9 +72,11 @@ bool GBSystem::tick() {
         cpu().tick();
     }
 
-    if (++cycles == (int) (clock_speed / 59.7275)) {
-        cycles = 0;
+    frame_cycles++;
+    cycles++;
+    if (frame_cycles == 70224) {
         frame_number++;
+        frame_cycles = 0;
         return true;
     }
     return false;
@@ -144,6 +149,44 @@ void GBSystem::set_address_space_byte(uint16_t addr, uint8_t value) {
         // Cannot access OAM during rendering modes 2 / 3
         if (addr >= 0xFE00 && addr <= 0xFE9F && (ppu().mode == LCDDrawMode::DRAWING || ppu().mode == LCDDrawMode::OAM_SCAN)) {
             return;
+        }
+    }
+
+    if (addr == SND_P1_PER_HI) {
+        if (value & (1 << 7) != 0) {
+            apu().ch1_volume = (address_space[SND_P1_VOL_ENV] >> 4);
+            apu().ch1_envelope_timer = 0;
+            apu().ch1_length = address_space[SND_P1_LEN_DUTY] & 0x3F;
+            apu().ch1_sweep_timer = (address_space[SND_P1_SWEEP] >> 4) & 0b111;
+
+            uint16_t period = address_space[SND_P1_PER_HI] & 0b111;
+            period <<= 8;
+            period |= address_space[SND_P1_PER_LOW];
+            apu().ch1_timer = (2048 - period) * 4;
+        }
+    }
+
+    if (addr == SND_P2_PER_HI) {
+        if (value & (1 << 7) != 0) {
+            apu().ch2_volume = (address_space[SND_P2_VOL_ENV] >> 4);
+            apu().ch2_envelope_timer = 0;
+            apu().ch2_timer = address_space[SND_P2_PER_HI] & 0b111;
+            apu().ch2_length = address_space[SND_P2_LEN_DUTY] & 0x3F;
+
+            uint16_t period = address_space[SND_P2_PER_HI] & 0b111;
+            period <<= 8;
+            period |= address_space[SND_P2_PER_LOW];
+            apu().ch2_timer = (2048 - period) * 4;
+        }
+    }
+
+    if (addr == SND_NS_CTRL) {
+        if (value & (1 << 7) != 0) {
+            apu().ch3_volume = (address_space[SND_NS_VOL] >> 4);
+            apu().ch3_envelope_timer = 0;
+            apu().ch3_lsfr = 0;
+            apu().ch3_length = address_space[SND_NS_LEN] & 0x3F;
+            apu().ch3_timer = address_space[SND_NS_CTRL] & 0b111;
         }
     }
 
