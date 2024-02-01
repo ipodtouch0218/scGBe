@@ -12,9 +12,9 @@ FetchContent_Declare(SFML
     GIT_TAG 2.6.x)
 FetchContent_MakeAvailable(SFML)
 
-file(GLOB sources src/*.cpp)
+file(GLOB_RECURSE sources CONFIGURE_DEPENDS src/*.cpp)
 
-include_directories(include)
+include_directories(include include/sound)
 include_directories(C:/msys64/mingw64/include)
 add_executable(gbemu ${sources})
 target_link_libraries(gbemu PRIVATE sfml-graphics sfml-audio)

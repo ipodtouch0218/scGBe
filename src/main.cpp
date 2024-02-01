@@ -1,4 +1,5 @@
 #include "gbsystem.h"
+#include <algorithm>
 #include <chrono>
 #include <cstring>
 #include <iostream>
@@ -16,7 +17,7 @@
 constexpr int WINDOW_SCALE = 2;
 
 GBSystem* gb;
-uint8_t joypad_buttons = 0xFF;
+extern uint8_t inputs;
 
 void window_thread() {
     sf::RenderWindow window(sf::VideoMode(160 * WINDOW_SCALE, 144 * WINDOW_SCALE), "Test Window");
@@ -48,7 +49,7 @@ void window_thread() {
                 case 71: index = 1; break;
                 case 72: index = 0; break;
                 }
-                joypad_buttons = utils::set_bit_value(joypad_buttons, index, 1);
+                inputs = utils::set_bit_value(inputs, index, 1);
                 break;
             }
             case sf::Event::KeyPressed: {
@@ -63,7 +64,7 @@ void window_thread() {
                 case 71: index = 1; break;
                 case 72: index = 0; break;
                 }
-                joypad_buttons = utils::set_bit_value(joypad_buttons, index, 0);
+                inputs = utils::set_bit_value(inputs, index, 0);
                 break;
             }
             }
@@ -77,28 +78,31 @@ void window_thread() {
 }
 
 class GBSoundStream : public sf::SoundStream {
-    private:
-    sf::Mutex mutex;
-
     public:
+    sf::Mutex mutex;
     std::vector<sf::Int16> filled_audio_buffer;
     std::vector<sf::Int16> playing_audio_buffer;
 
-
     GBSoundStream() {
-        initialize(1, 31775);
-        filled_audio_buffer.reserve(532);
-        playing_audio_buffer.reserve(532);
+        initialize(2, 31775);
+        filled_audio_buffer.reserve(532 * 2 * 2);
+        playing_audio_buffer.reserve(532 * 2);
     }
 
     bool onGetData(SoundStream::Chunk& data) {
         mutex.lock();
-        playing_audio_buffer = filled_audio_buffer;
-        filled_audio_buffer.clear();
+        int size = filled_audio_buffer.size();
+        if (size >= 532 * 2) {
+            std::copy_n(filled_audio_buffer.begin(), 532 * 2, playing_audio_buffer.begin());
+            filled_audio_buffer.erase(filled_audio_buffer.begin(), filled_audio_buffer.begin() + 532 * 2);
+        } else {
+            std::cerr << "[AUDIO] didnt have enough samples! (" << size << ")" << std::endl;
+        }
+
         mutex.unlock();
 
         data.samples = playing_audio_buffer.data();
-        data.sampleCount = 532;
+        data.sampleCount = 532 * 2;
         return true;
     }
 
@@ -113,7 +117,10 @@ class GBSoundStream : public sf::SoundStream {
 
 int main(int argc, char* argv[]) {
 
-    gb = new GBSystem(false);
+    if (argc < 2) {
+        std::cerr << "Please specify a rom file!" << std::endl;
+        return 1;
+    }
 
     std::ifstream rom_file(argv[1]);
     if (!rom_file.is_open()) {
@@ -121,7 +128,9 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    rom_file.read((char*) gb->address_space, 0x7FFF);
+    gb = new GBSystem(false);
+
+    rom_file.read((char*) (gb->address_space), 0x7FFF);
     rom_file.close();
 
     gb->reset();
@@ -132,26 +141,23 @@ int main(int argc, char* argv[]) {
     GBSoundStream* sound_stream = new GBSoundStream();
 
     using frames = std::chrono::duration<int64_t, std::ratio<400, 23891>>;
-    auto frame_render_start = std::chrono::system_clock::now();
+    auto game_start = std::chrono::system_clock::now();
 
     while(true) {
-        if (gb->tick()) {
-            // Frame is done! Wait enough time...
-            auto sleep_time = (frame_render_start + frames{1}) - std::chrono::system_clock::now();
-
-            std::this_thread::sleep_until(frame_render_start + frames{1});
-            frame_render_start = std::chrono::system_clock::now();
-
-            if (sound_stream->getStatus() != sf::SoundSource::Playing) {
-                sound_stream->play();
-            }
-        }
-
         // Get a new sound sample.
         if (gb->cycles % 132 == 0) {
-            sound_stream->add_sample(gb->apu().current_sample());
+            sound_stream->add_sample(gb->apu().current_sample(false));
+            sound_stream->add_sample(gb->apu().current_sample(true));
+        }
+
+        if (gb->tick()) {
+            // Frame is done! Wait enough time...
+            if (gb->frame_number == 3 && sound_stream->getStatus() != sf::SoundSource::Status::Playing) {
+                sound_stream->play();
+            }
+
+            std::this_thread::sleep_until(game_start + frames{gb->frame_number});
         }
     }
-
     return 0;
 }

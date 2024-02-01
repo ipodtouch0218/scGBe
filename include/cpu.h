@@ -1,8 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include "instructions.h"
-
-class GBSystem;
+#include "gbcomponent.h"
 
 struct Flags {
     bool zero, subtraction, half_carry, carry;
@@ -97,18 +96,18 @@ struct Registers {
     }
 };
 
-class CPU {
+class CPU : public GBComponent {
     public:
-    GBSystem* gb;
     Registers registers;
     bool ime_flag = false;
 
     uint8_t wait_ticks = 0;
 
-    CPU(GBSystem* gb);
+    CPU(GBSystem& gb_param);
 
-    void reset();
     void tick();
+    void reset();
+
     uint8_t execute();
     uint8_t check_for_interrupts();
 

@@ -177,6 +177,7 @@ preinstall/fast:
 
 # clear depends
 depend:
+	$(CMAKE_COMMAND) -P C:\Users\Danny-GOD_PC\Documents\Projects\GB\CMakeFiles\VerifyGlobs.cmake
 	$(CMAKE_COMMAND) -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR) --check-build-system CMakeFiles\Makefile.cmake 1
 .PHONY : depend
 
@@ -271,30 +272,6 @@ sfml-audio/fast:
 	$(MAKE) $(MAKESILENT) -f _deps\sfml-build\src\SFML\Audio\CMakeFiles\sfml-audio.dir\build.make _deps/sfml-build/src/SFML/Audio/CMakeFiles/sfml-audio.dir/build
 .PHONY : sfml-audio/fast
 
-src/apu.obj: src/apu.cpp.obj
-.PHONY : src/apu.obj
-
-# target to build an object file
-src/apu.cpp.obj:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/apu.cpp.obj
-.PHONY : src/apu.cpp.obj
-
-src/apu.i: src/apu.cpp.i
-.PHONY : src/apu.i
-
-# target to preprocess a source file
-src/apu.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/apu.cpp.i
-.PHONY : src/apu.cpp.i
-
-src/apu.s: src/apu.cpp.s
-.PHONY : src/apu.s
-
-# target to generate assembly for a file
-src/apu.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/apu.cpp.s
-.PHONY : src/apu.cpp.s
-
 src/cpu.obj: src/cpu.cpp.obj
 .PHONY : src/cpu.obj
 
@@ -319,6 +296,30 @@ src/cpu.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/cpu.cpp.s
 .PHONY : src/cpu.cpp.s
 
+src/dmacontroller.obj: src/dmacontroller.cpp.obj
+.PHONY : src/dmacontroller.obj
+
+# target to build an object file
+src/dmacontroller.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/dmacontroller.cpp.obj
+.PHONY : src/dmacontroller.cpp.obj
+
+src/dmacontroller.i: src/dmacontroller.cpp.i
+.PHONY : src/dmacontroller.i
+
+# target to preprocess a source file
+src/dmacontroller.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/dmacontroller.cpp.i
+.PHONY : src/dmacontroller.cpp.i
+
+src/dmacontroller.s: src/dmacontroller.cpp.s
+.PHONY : src/dmacontroller.s
+
+# target to generate assembly for a file
+src/dmacontroller.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/dmacontroller.cpp.s
+.PHONY : src/dmacontroller.cpp.s
+
 src/gbsystem.obj: src/gbsystem.cpp.obj
 .PHONY : src/gbsystem.obj
 
@@ -342,6 +343,30 @@ src/gbsystem.s: src/gbsystem.cpp.s
 src/gbsystem.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/gbsystem.cpp.s
 .PHONY : src/gbsystem.cpp.s
+
+src/joypad.obj: src/joypad.cpp.obj
+.PHONY : src/joypad.obj
+
+# target to build an object file
+src/joypad.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/joypad.cpp.obj
+.PHONY : src/joypad.cpp.obj
+
+src/joypad.i: src/joypad.cpp.i
+.PHONY : src/joypad.i
+
+# target to preprocess a source file
+src/joypad.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/joypad.cpp.i
+.PHONY : src/joypad.cpp.i
+
+src/joypad.s: src/joypad.cpp.s
+.PHONY : src/joypad.s
+
+# target to generate assembly for a file
+src/joypad.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/joypad.cpp.s
+.PHONY : src/joypad.cpp.s
 
 src/main.obj: src/main.cpp.obj
 .PHONY : src/main.obj
@@ -391,6 +416,150 @@ src/ppu.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/ppu.cpp.s
 .PHONY : src/ppu.cpp.s
 
+src/sound/apu.obj: src/sound/apu.cpp.obj
+.PHONY : src/sound/apu.obj
+
+# target to build an object file
+src/sound/apu.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/sound/apu.cpp.obj
+.PHONY : src/sound/apu.cpp.obj
+
+src/sound/apu.i: src/sound/apu.cpp.i
+.PHONY : src/sound/apu.i
+
+# target to preprocess a source file
+src/sound/apu.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/sound/apu.cpp.i
+.PHONY : src/sound/apu.cpp.i
+
+src/sound/apu.s: src/sound/apu.cpp.s
+.PHONY : src/sound/apu.s
+
+# target to generate assembly for a file
+src/sound/apu.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/sound/apu.cpp.s
+.PHONY : src/sound/apu.cpp.s
+
+src/sound/noisechannel.obj: src/sound/noisechannel.cpp.obj
+.PHONY : src/sound/noisechannel.obj
+
+# target to build an object file
+src/sound/noisechannel.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/sound/noisechannel.cpp.obj
+.PHONY : src/sound/noisechannel.cpp.obj
+
+src/sound/noisechannel.i: src/sound/noisechannel.cpp.i
+.PHONY : src/sound/noisechannel.i
+
+# target to preprocess a source file
+src/sound/noisechannel.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/sound/noisechannel.cpp.i
+.PHONY : src/sound/noisechannel.cpp.i
+
+src/sound/noisechannel.s: src/sound/noisechannel.cpp.s
+.PHONY : src/sound/noisechannel.s
+
+# target to generate assembly for a file
+src/sound/noisechannel.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/sound/noisechannel.cpp.s
+.PHONY : src/sound/noisechannel.cpp.s
+
+src/sound/pulsechannel.obj: src/sound/pulsechannel.cpp.obj
+.PHONY : src/sound/pulsechannel.obj
+
+# target to build an object file
+src/sound/pulsechannel.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/sound/pulsechannel.cpp.obj
+.PHONY : src/sound/pulsechannel.cpp.obj
+
+src/sound/pulsechannel.i: src/sound/pulsechannel.cpp.i
+.PHONY : src/sound/pulsechannel.i
+
+# target to preprocess a source file
+src/sound/pulsechannel.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/sound/pulsechannel.cpp.i
+.PHONY : src/sound/pulsechannel.cpp.i
+
+src/sound/pulsechannel.s: src/sound/pulsechannel.cpp.s
+.PHONY : src/sound/pulsechannel.s
+
+# target to generate assembly for a file
+src/sound/pulsechannel.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/sound/pulsechannel.cpp.s
+.PHONY : src/sound/pulsechannel.cpp.s
+
+src/sound/soundchannel.obj: src/sound/soundchannel.cpp.obj
+.PHONY : src/sound/soundchannel.obj
+
+# target to build an object file
+src/sound/soundchannel.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/sound/soundchannel.cpp.obj
+.PHONY : src/sound/soundchannel.cpp.obj
+
+src/sound/soundchannel.i: src/sound/soundchannel.cpp.i
+.PHONY : src/sound/soundchannel.i
+
+# target to preprocess a source file
+src/sound/soundchannel.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/sound/soundchannel.cpp.i
+.PHONY : src/sound/soundchannel.cpp.i
+
+src/sound/soundchannel.s: src/sound/soundchannel.cpp.s
+.PHONY : src/sound/soundchannel.s
+
+# target to generate assembly for a file
+src/sound/soundchannel.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/sound/soundchannel.cpp.s
+.PHONY : src/sound/soundchannel.cpp.s
+
+src/sound/wavechannel.obj: src/sound/wavechannel.cpp.obj
+.PHONY : src/sound/wavechannel.obj
+
+# target to build an object file
+src/sound/wavechannel.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/sound/wavechannel.cpp.obj
+.PHONY : src/sound/wavechannel.cpp.obj
+
+src/sound/wavechannel.i: src/sound/wavechannel.cpp.i
+.PHONY : src/sound/wavechannel.i
+
+# target to preprocess a source file
+src/sound/wavechannel.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/sound/wavechannel.cpp.i
+.PHONY : src/sound/wavechannel.cpp.i
+
+src/sound/wavechannel.s: src/sound/wavechannel.cpp.s
+.PHONY : src/sound/wavechannel.s
+
+# target to generate assembly for a file
+src/sound/wavechannel.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/sound/wavechannel.cpp.s
+.PHONY : src/sound/wavechannel.cpp.s
+
+src/timer.obj: src/timer.cpp.obj
+.PHONY : src/timer.obj
+
+# target to build an object file
+src/timer.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/timer.cpp.obj
+.PHONY : src/timer.cpp.obj
+
+src/timer.i: src/timer.cpp.i
+.PHONY : src/timer.i
+
+# target to preprocess a source file
+src/timer.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/timer.cpp.i
+.PHONY : src/timer.cpp.i
+
+src/timer.s: src/timer.cpp.s
+.PHONY : src/timer.s
+
+# target to generate assembly for a file
+src/timer.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/timer.cpp.s
+.PHONY : src/timer.cpp.s
+
 # Help Target
 help:
 	@echo The following are some of the valid targets for this Makefile:
@@ -412,21 +581,42 @@ help:
 	@echo ... sfml-network
 	@echo ... sfml-system
 	@echo ... sfml-window
-	@echo ... src/apu.obj
-	@echo ... src/apu.i
-	@echo ... src/apu.s
 	@echo ... src/cpu.obj
 	@echo ... src/cpu.i
 	@echo ... src/cpu.s
+	@echo ... src/dmacontroller.obj
+	@echo ... src/dmacontroller.i
+	@echo ... src/dmacontroller.s
 	@echo ... src/gbsystem.obj
 	@echo ... src/gbsystem.i
 	@echo ... src/gbsystem.s
+	@echo ... src/joypad.obj
+	@echo ... src/joypad.i
+	@echo ... src/joypad.s
 	@echo ... src/main.obj
 	@echo ... src/main.i
 	@echo ... src/main.s
 	@echo ... src/ppu.obj
 	@echo ... src/ppu.i
 	@echo ... src/ppu.s
+	@echo ... src/sound/apu.obj
+	@echo ... src/sound/apu.i
+	@echo ... src/sound/apu.s
+	@echo ... src/sound/noisechannel.obj
+	@echo ... src/sound/noisechannel.i
+	@echo ... src/sound/noisechannel.s
+	@echo ... src/sound/pulsechannel.obj
+	@echo ... src/sound/pulsechannel.i
+	@echo ... src/sound/pulsechannel.s
+	@echo ... src/sound/soundchannel.obj
+	@echo ... src/sound/soundchannel.i
+	@echo ... src/sound/soundchannel.s
+	@echo ... src/sound/wavechannel.obj
+	@echo ... src/sound/wavechannel.i
+	@echo ... src/sound/wavechannel.s
+	@echo ... src/timer.obj
+	@echo ... src/timer.i
+	@echo ... src/timer.s
 .PHONY : help
 
 
@@ -438,6 +628,7 @@ help:
 # No rule that depends on this can have commands that come from listfiles
 # because they might be regenerated.
 cmake_check_build_system:
+	$(CMAKE_COMMAND) -P C:\Users\Danny-GOD_PC\Documents\Projects\GB\CMakeFiles\VerifyGlobs.cmake
 	$(CMAKE_COMMAND) -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR) --check-build-system CMakeFiles\Makefile.cmake 0
 .PHONY : cmake_check_build_system
 

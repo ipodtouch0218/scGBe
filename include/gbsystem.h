@@ -1,27 +1,29 @@
 #pragma once
+#include <initializer_list>
 #include <stdint.h>
 #include "apu.h"
 #include "cpu.h"
+#include "dmacontroller.h"
+#include "joypad.h"
 #include "ppu.h"
+#include "timer.h"
 
 constexpr uint16_t RST_VECTORS = 0x0000;
 constexpr uint16_t INTERRUPT_VECTORS = 0x0040;
-
-constexpr uint8_t INT_VBLANK = 0;
-constexpr uint8_t INT_STAT = 1;
-constexpr uint8_t INT_TIMER = 2;
-constexpr uint8_t INT_SERIAL = 3;
-constexpr uint8_t INT_JOYPAD = 4;
-
 constexpr uint16_t DMA_DEST = 0xFE00;
 
+constexpr uint16_t IO_REGISTERS_START = 0xFF00;
+constexpr uint16_t IO_REGISTERS_END = 0xFF7F;
 
 class GBSystem {
 
     protected:
-    CPU _cpu = CPU(this);
-    PPU _ppu = PPU(this);
-    APU _apu = APU(this);
+    CPU _cpu = CPU(*this);
+    PPU _ppu = PPU(*this);
+    APU _apu = APU(*this);
+    Timer _timer = Timer(*this);
+    DMAController _dma_controller = DMAController(*this);
+    Joypad _joypad = Joypad(*this);
     bool _cgb = false;
 
     public:
@@ -29,21 +31,23 @@ class GBSystem {
     uint64_t cycles = 0;
     uint64_t frame_cycles = 0;
     uint8_t timer_cycles = 0;
-    uint8_t dma_counter = 0;
     uint64_t frame_number = 0;
 
     uint8_t address_space[0xFFFF];
 
-    uint8_t current_joypad_buttons = 0xFF;
+    GBComponent* register_handlers[0x80];
 
     GBSystem(bool cgb);
 
     bool tick();
-
     void reset();
 
     uint8_t get_address_space_byte(uint16_t addr);
     void set_address_space_byte(uint16_t addr, uint8_t value);
+
+    void add_register_callbacks(GBComponent* component, std::initializer_list<uint16_t> addresses);
+    void add_register_callbacks_range(GBComponent* component, uint16_t address_start, uint16_t address_end_exclusive);
+    void request_interrupt(Interrupts::Interrupts interrupt);
 
     CPU& cpu() {
         return _cpu;
@@ -57,7 +61,15 @@ class GBSystem {
         return _apu;
     }
 
-    bool cgb() {
+    Timer& timer() {
+        return _timer;
+    }
+
+    DMAController& dma() {
+        return _dma_controller;
+    }
+
+    bool cgb_mode() const {
         return _cgb;
     }
 };
