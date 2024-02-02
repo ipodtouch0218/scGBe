@@ -10,7 +10,9 @@ class APU : public GBComponent {
     protected:
     bool _enabled = true;
     bool _channel_panning[2][4] = {false, false, false, false, false, false, false, false};
+    bool _vin_left = false;
     uint8_t _left_volume = 8;
+    bool _vin_right = false;
     uint8_t _right_volume = 8;
 
     public:

@@ -51,7 +51,7 @@ bool GBSystem::tick() {
     return false;
 }
 
-uint8_t GBSystem::get_address_space_byte(uint16_t addr) {
+uint8_t GBSystem::read_address(uint16_t addr) {
 
     if (addr >= IO_REGISTERS_START && addr <= IO_REGISTERS_END) {
         // IO Registers
@@ -61,21 +61,32 @@ uint8_t GBSystem::get_address_space_byte(uint16_t addr) {
         }
     }
 
+    if (dma().active() && addr < 0xFF80) {
+        // Cannot access non-HRAM during DMA
+        std::cerr << "READ FROM NON-HRAM WHILE DMA IS ACTIVE!" << std::endl;
+        return 0xFF;
+    }
+
+    if (addr >= 0x0000 && addr <= 0x7FFF) {
+        // ROM
+        return cartridge().read_address(addr);
+    }
+
     if (addr >= 0xE000 && addr <= 0xFDFF) {
         // Echo RAM
         addr -= 0x2000;
     }
-    if (dma().active() && addr < 0xFF80) {
-        // Cannot access non-HRAM during DMA
-        return 0xFF;
-    }
+
     if (ppu().enabled()) {
         // Cannot access vram during rendering mode 3
-        if (addr >= 0x8000 && addr <= 0x9FFF && ppu().mode == LCDDrawMode::Drawing) {
+        if (addr >= 0x8000 && addr <= 0x9FFF && ppu().mode() == LCDDrawMode::Drawing) {
+            std::cerr << "READ FROM VRAM WHILE PPU IS DRAWING!" << std::endl;
+            exit(4312);
             return 0xFF;
         }
         // Cannot access OAM during rendering modes 2 / 3
-        if (addr >= 0xFE00 && addr <= 0xFE9F && (ppu().mode == LCDDrawMode::Drawing || ppu().mode == LCDDrawMode::OAM_Scan)) {
+        if (addr >= 0xFE00 && addr <= 0xFE9F && (ppu().mode() == LCDDrawMode::Drawing || ppu().mode() == LCDDrawMode::OAM_Scan)) {
+            std::cerr << "READ FROM OAM WHILE PPU IS DRAWING/SCANNING!" << std::endl;
             return 0xFF;
         }
     }
@@ -83,7 +94,7 @@ uint8_t GBSystem::get_address_space_byte(uint16_t addr) {
     return address_space[addr];
 }
 
-void GBSystem::set_address_space_byte(uint16_t addr, uint8_t value) {
+void GBSystem::write_address(uint16_t addr, uint8_t value) {
 
     if (addr >= IO_REGISTERS_START && addr <= IO_REGISTERS_END) {
         // IO Registers
@@ -94,21 +105,27 @@ void GBSystem::set_address_space_byte(uint16_t addr, uint8_t value) {
         }
     }
 
-    if (addr <= 0x7FFF) {
-        // Protect ROM
-        return;
-    }
     if (dma().active() && addr < 0xFF80) {
         // Cannot access non-HRAM during DMA
+        std::cerr << "WRITE TO NON-HRAM WHILE DMA IS ACTIVE!" << std::endl;
         return;
     }
+
+    if (addr >= 0x0000 && addr <= 0x7FFF) {
+        // ROM
+        cartridge().write_address(addr, value);
+        return;
+    }
+
     if (ppu().enabled()) {
         // Cannot access vram during rendering mode 3
-        if (addr >= 0x8000 && addr <= 0x9FFF && ppu().mode == LCDDrawMode::Drawing) {
+        if (addr >= 0x8000 && addr <= 0x9FFF && ppu().mode() == LCDDrawMode::Drawing) {
+            std::cerr << "WRITE TO VRAM WHILE PPU IS DRAWING!" << std::endl;
             return;
         }
         // Cannot access OAM during rendering modes 2 / 3
-        if (addr >= 0xFE00 && addr <= 0xFE9F && (ppu().mode == LCDDrawMode::Drawing || ppu().mode == LCDDrawMode::OAM_Scan)) {
+        if (addr >= 0xFE00 && addr <= 0xFE9F && (ppu().mode() == LCDDrawMode::Drawing || ppu().mode() == LCDDrawMode::OAM_Scan)) {
+            std::cerr << "WRITE TO OAM WHILE PPU IS DRAWING/SCANNING!" << std::endl;
             return;
         }
     }

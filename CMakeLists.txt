@@ -19,6 +19,7 @@ include_directories(C:/msys64/mingw64/include)
 add_executable(gbemu ${sources})
 target_link_libraries(gbemu PRIVATE sfml-graphics sfml-audio)
 target_compile_features(gbemu PRIVATE cxx_std_17)
+target_compile_options(gbemu PRIVATE -O3)
 
 if(WIN32)
     add_custom_command(

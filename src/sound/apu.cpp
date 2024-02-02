@@ -71,14 +71,15 @@ uint8_t APU::get_register(uint16_t address) {
 
     switch (address) {
     case NR50: {
-        // TODO: vin stuff
         uint8_t value = 0;
         value |= _right_volume;
+        value = utils::set_bit_value(value, 3, _vin_right);
         value |= (_left_volume << 4);
+        value = utils::set_bit_value(value, 7, _vin_left);
         return value;
     }
     case NR51: {
-        uint8_t value = 0;
+        uint8_t value = 0xFF;
         value = utils::set_bit_value(value, 7, _channel_panning[0][3]);
         value = utils::set_bit_value(value, 6, _channel_panning[0][2]);
         value = utils::set_bit_value(value, 5, _channel_panning[0][1]);
@@ -90,12 +91,28 @@ uint8_t APU::get_register(uint16_t address) {
         return value;
     }
     case NR52: {
-        uint8_t value = 0;
-        value |= utils::set_bit_value(value, 0, pulse_channel_1.active());
-        value |= utils::set_bit_value(value, 1, pulse_channel_2.active());
-        value |= utils::set_bit_value(value, 2, wave_channel_3.active());
-        value |= utils::set_bit_value(value, 3, noise_channel_4.active());
-        value |= utils::set_bit_value(value, 7, _enabled);
+        uint8_t value = 0xFF;
+        value = utils::set_bit_value(value, 0, pulse_channel_1.active());
+        value = utils::set_bit_value(value, 1, pulse_channel_2.active());
+        value = utils::set_bit_value(value, 2, wave_channel_3.active());
+        value = utils::set_bit_value(value, 3, noise_channel_4.active());
+        value = utils::set_bit_value(value, 7, _enabled);
+
+        if (!_enabled) {
+            pulse_channel_1.clear_registers();
+            pulse_channel_2.clear_registers();
+            wave_channel_3.clear_registers();
+            noise_channel_4.clear_registers();
+            for (int i = 0; i < 2; i++) {
+                for (int j = 0; j < 4; j++) {
+                    _channel_panning[i][j] = true;
+                }
+            }
+            _right_volume = 0b111;
+            _vin_right = true;
+            _left_volume = 0b111;
+            _vin_left = true;
+        }
         return value;
     }
     }
@@ -122,7 +139,9 @@ void APU::set_register(uint16_t address, uint8_t value) {
     case NR50: {
         // TODO: vin stuff
         _right_volume = value & 0b111;
+        _vin_right = utils::get_bit_value(value, 3);
         _left_volume = (value >> 4) & 0b111;
+        _vin_left = utils::get_bit_value(value, 7);
         break;
     }
     case NR51: {

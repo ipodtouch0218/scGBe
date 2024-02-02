@@ -7,7 +7,10 @@
 WaveChannel::WaveChannel(uint16_t base_address) :
     SoundChannel::SoundChannel(base_address)
 {
-
+    // Initialize wave table with 00FF00FF00FF...
+    for (size_t i = 0; i < 32; i++) {
+        _wave_samples[i] = 0xF * ((i % 4) >= 2);
+    }
 }
 
 void WaveChannel::tick() {
@@ -18,12 +21,13 @@ void WaveChannel::tick() {
     if (_timer-- == 0) {
         _wave_index++;
         _wave_index %= 32;
+        _current_wave_sample = _wave_samples[_wave_index];
         _timer = (2048 - _period) * 2;
     }
 }
 
 void WaveChannel::div_tick(uint8_t div_apu) {
-    if (!_active || !_dac_enabled) {
+    if (!_dac_enabled) {
         return;
     }
 
@@ -41,7 +45,7 @@ int16_t WaveChannel::current_sample() {
         return 0;
     }
 
-    float sample = _wave_samples[_wave_index] / 15.0f;
+    float sample = _current_wave_sample / 15.0f;
     sample -= 0.5f;
     sample *= (_volume / 15.0f);
 
@@ -67,25 +71,26 @@ uint8_t WaveChannel::get_register(uint16_t address) {
 
     switch (address - _base_address) {
     case 0: { // NRx0: DAC Enable
-        return utils::set_bit_value(0, 7, _dac_enabled);
+        return utils::set_bit_value(0xFF, 7, _dac_enabled);
     }
     case 1: { // NRx1: Initial Length Timer (write-only)
         return 0xFF;
     }
     case 2: { // NRx2: Initial Volume
-        uint8_t value;
+        uint8_t value = 0b10011111;
         switch (_initial_volume) {
-        case 0x0: return 0 << 5;
-        case 0xF: return 1 << 5;
-        case 0x8: return 2 << 5;
-        case 0x4: return 3 << 5;
+        case 0x0: value |= (0 << 5); break;
+        case 0xF: value |= (1 << 5); break;
+        case 0x8: value |= (2 << 5); break;
+        case 0x4: value |= (3 << 5); break;
         }
+        return value;
     }
     case 3: { // NRx3: Period Low (write-only)
         return 0xFF;
     }
     case 4: { // NRx4: Length Enable
-        return utils::set_bit_value(0, 6, _length_enable);
+        return utils::set_bit_value(0xFF, 6, _length_enable);
     }
     default: return 0xFF;
     }
@@ -102,7 +107,9 @@ void WaveChannel::set_register(uint16_t address, uint8_t value) {
     switch (address - _base_address) {
     case 0: { // NRx0: DAC enable
         _dac_enabled = utils::get_bit_value(value, 7);
-        _active &= _dac_enabled;
+        if (!_dac_enabled) {
+            _active = false;
+        }
         break;
     }
     case 1: { // NRx1: Initial Length Timer
@@ -126,7 +133,7 @@ void WaveChannel::set_register(uint16_t address, uint8_t value) {
         break;
     }
     case 4: { // NRx4: Period High, Length Enable, Trigger
-        _period &= 0xFF;
+        _period &= 0x00FF;
         _period |= ((uint16_t) (value & 0b111)) << 8;
         _length_enable = utils::get_bit_value(value, 6);
 
@@ -136,4 +143,12 @@ void WaveChannel::set_register(uint16_t address, uint8_t value) {
         break;
     }
     }
+}
+
+void WaveChannel::clear_registers() {
+    _length_timer = 255;
+    _initial_volume = 0b11;
+    _volume = 0b11;
+    _period = 0b11111111111;
+    _length_enable = true;
 }

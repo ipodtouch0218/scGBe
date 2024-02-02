@@ -27,5 +27,5 @@ class NoiseChannel : public SoundChannel {
 
     uint8_t get_register(uint16_t address);
     void set_register(uint16_t address, uint8_t value);
-
+    void clear_registers();
 };

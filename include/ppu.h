@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <vector>
 #include "gbcomponent.h"
+#include "utils.h"
 
 constexpr uint8_t SCREEN_W = 160;
 constexpr uint8_t SCREEN_H = 144;
@@ -45,23 +46,23 @@ struct OAMEntry {
     uint8_t attributes;
 
     bool priority() const {
-        return attributes & (1 << 7) != 0;
+        return utils::get_bit_value(attributes, 7);
     }
 
     bool y_flip() const {
-        return attributes & (1 << 6) != 0;
+        return utils::get_bit_value(attributes, 6);
     }
 
     bool x_flip() const {
-        return attributes & (1 << 5) != 0;
+        return utils::get_bit_value(attributes, 5);
     }
 
     bool dmg_palette() const {
-        return attributes & (1 << 4) != 0;
+        return utils::get_bit_value(attributes, 4);
     }
 
     bool vram_bank() const {
-        return attributes & (1 << 3) != 0;
+        return utils::get_bit_value(attributes, 3);
     }
 
     uint8_t cgb_palette() const {
@@ -95,19 +96,23 @@ class PPU : public GBComponent {
     // BGP
     uint8_t _bg_palette[4];
     uint8_t _obj_palettes[2][4];
+    // WY
+    uint8_t _window_scroll_y = 0;
+    // WX
+    uint8_t _window_scroll_x = 0;
+
+    // Drawing stuff
+    LCDDrawMode::LCDDrawMode _mode = LCDDrawMode::OAM_Scan;
+    uint16_t _dots = 0;
+    uint8_t _penalty_dots = 0;
+    uint8_t _draw_pixel_x = 0;
+
+    std::vector<OAMEntry*> _scanline_sprite_buffer;
+    uint8_t _last_drawn_sprite_tile_x = -1;
+    bool _was_disabled = false;
 
     public:
-    LCDDrawMode::LCDDrawMode mode;
-    uint16_t dots;
-    uint8_t penalty_dots;
-    uint8_t draw_pixel_x;
-
     uint8_t framebuffer[SCREEN_W * SCREEN_H * 4];
-
-    std::vector<OAMEntry*> scanline_sprite_buffer;
-    uint8_t last_drawn_sprite_tile_x = -1;
-
-    bool was_disabled = false;
 
     PPU(GBSystem& gb);
 
@@ -119,4 +124,11 @@ class PPU : public GBComponent {
     bool enabled() const {
         return _enabled;
     }
+
+    LCDDrawMode::LCDDrawMode mode() const {
+        return _mode;
+    }
+
+    protected:
+    uint8_t get_pixel_of_tile(uint16_t tile_addr, uint8_t x, uint8_t y) const;
 };

@@ -3,7 +3,18 @@
 #include <iostream>
 
 void SoundChannel::div_tick(uint8_t div_apu) {
-    if (!_active || !_dac_enabled) {
+    if (!_dac_enabled) {
+        return;
+    }
+
+    if (_length_enable && (div_apu % 2) == 0) {
+        // Sound length
+        if (--_length_timer == 0) {
+            _active = false;
+        }
+    }
+
+    if (!_active) {
         return;
     }
 
@@ -17,14 +28,6 @@ void SoundChannel::div_tick(uint8_t div_apu) {
             }
 
             _volume_sweep_timer = _volume_sweep_pace;
-        }
-    }
-
-    if (_length_enable && (div_apu % 2) == 0) {
-        // Sound length
-        if (--_length_timer == 0) {
-            _active = false;
-            return;
         }
     }
 }

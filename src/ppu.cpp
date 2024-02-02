@@ -15,44 +15,37 @@ constexpr uint32_t SCREEN_COLORS[] = {
 PPU::PPU(GBSystem& gb) :
     GBComponent::GBComponent(gb)
 {
-    scanline_sprite_buffer.reserve(10);
-
-    gb.add_register_callbacks(this, {LY, LYC, STAT, LCDC, SCY, SCX, BGP, OBP0, OBP1});
-
-    // gb->address_space[LY] = 0;
-    dots = 0;
-    draw_pixel_x = 0;
-    penalty_dots = 0;
-    mode = LCDDrawMode::OAM_Scan;
+    gb.add_register_callbacks(this, {LY, LYC, STAT, LCDC, SCY, SCX, BGP, OBP0, OBP1, SCY, SCX});
+    _scanline_sprite_buffer.reserve(10);
 }
 
 void PPU::tick() {
 
     if (!enabled()) {
-        was_disabled = true;
+        _was_disabled = true;
         return;
     }
 
-    if (was_disabled) {
+    if (_was_disabled) {
         // Recovering from being disabled.
         // Wait until the next frame to reset everything (TODO: is this accurate?)
         if (gb.frame_cycles == 0) {
             // Next scanline
-            dots = 0;
-            draw_pixel_x = 0;
+            _dots = 0;
+            _draw_pixel_x = 0;
             _current_scanline = 0;
-            mode = LCDDrawMode::OAM_Scan;
-            was_disabled = false;
+            _mode = LCDDrawMode::OAM_Scan;
+            _was_disabled = false;
         } else {
             return;
         }
     }
 
-    LCDDrawMode::LCDDrawMode previous_draw_mode = mode;
+    LCDDrawMode::LCDDrawMode previous_draw_mode = _mode;
 
-    if (mode == LCDDrawMode::OAM_Scan) {
-        if (dots == OAM_SCAN_DOTS) {
-            scanline_sprite_buffer.clear();
+    if (_mode == LCDDrawMode::OAM_Scan) {
+        if (_dots == OAM_SCAN_DOTS) {
+            _scanline_sprite_buffer.clear();
             uint8_t sprite_height = 8 + (8 * _obj_tall);
 
             constexpr uint32_t invalid_entry = 0xFFFFFFFF;
@@ -67,8 +60,8 @@ void PPU::tick() {
                 uint8_t y_diff = (_current_scanline + 16) - entry->y_position;
                 if (y_diff < sprite_height) {
                     // On this scanline!
-                    scanline_sprite_buffer.push_back(entry);
-                    if (scanline_sprite_buffer.size() == MAX_SPRITES_PER_SCANLINE) {
+                    _scanline_sprite_buffer.push_back(entry);
+                    if (_scanline_sprite_buffer.size() == MAX_SPRITES_PER_SCANLINE) {
                         break;
                     }
                 }
@@ -79,28 +72,28 @@ void PPU::tick() {
 
             }
 
-            mode = LCDDrawMode::Drawing;
+            _mode = LCDDrawMode::Drawing;
         }
     }
 
-    if (mode == LCDDrawMode::Drawing) {
+    if (_mode == LCDDrawMode::Drawing) {
         // Out here, used for determining the obj penalties
-        uint8_t target_pixel_in_bg_x = _bg_scroll_x + draw_pixel_x;
-        uint8_t target_pixel_in_bg_y = _bg_scroll_y + _current_scanline;
+        uint8_t target_pixel_in_bg_x = _draw_pixel_x - _bg_scroll_x;
+        uint8_t target_pixel_in_bg_y = _current_scanline - _bg_scroll_y;
 
-        uint8_t tilemap_x = (target_pixel_in_bg_x / 8);
-        uint8_t tilemap_y = (target_pixel_in_bg_y / 8);
-        uint8_t draw_pixel_of_tile_x = draw_pixel_x % 8;
-        uint8_t draw_pixel_of_tile_y = _current_scanline % 8;
+        uint8_t bg_tilemap_x = (target_pixel_in_bg_x / 8);
+        uint8_t bg_tilemap_y = (target_pixel_in_bg_y / 8);
+        uint8_t draw_pixel_of_bg_tile_x = _draw_pixel_x % 8;
+        uint8_t draw_pixel_of_bg_tile_y = _current_scanline % 8;
 
-        if (dots == OAM_SCAN_DOTS) {
-            penalty_dots = 12; // 12 wasted cycles at the beginning
-            penalty_dots += (_bg_scroll_x % 8); // Discarding pixels in leftmost tile
+        if (_dots == OAM_SCAN_DOTS) {
+            _penalty_dots = 12; // 12 wasted cycles at the beginning
+            _penalty_dots += (_bg_scroll_x % 8); // Discarding pixels in leftmost tile
         }
 
         OAMEntry* sprite_to_draw = nullptr;
-        for (OAMEntry* entry : scanline_sprite_buffer) {
-            uint8_t x_diff = (draw_pixel_x + 8) - entry->x_position;
+        for (OAMEntry* entry : _scanline_sprite_buffer) {
+            uint8_t x_diff = (_draw_pixel_x + 8) - entry->x_position;
             if (x_diff >= 8 && x_diff != -1) {
                 continue;
             }
@@ -108,16 +101,16 @@ void PPU::tick() {
 
             if (x_diff == -1) {
                 // 6 dot penalty for retrieving the tile...
-                penalty_dots += 6;
+                _penalty_dots += 6;
 
                 // And additional penalties for the first sprite in the tile
-                if (tilemap_x != last_drawn_sprite_tile_x) {
-                    uint8_t remaining_tile_pixels = (8 - draw_pixel_of_tile_x);
+                if (bg_tilemap_x != _last_drawn_sprite_tile_x) {
+                    uint8_t remaining_tile_pixels = (8 - draw_pixel_of_bg_tile_x);
                     int8_t additional_penalty = remaining_tile_pixels - 2;
                     if (additional_penalty > 0) {
-                        penalty_dots += additional_penalty;
+                        _penalty_dots += additional_penalty;
                     }
-                    last_drawn_sprite_tile_x = tilemap_x;
+                    _last_drawn_sprite_tile_x = bg_tilemap_x;
                 }
             }
 
@@ -129,17 +122,17 @@ void PPU::tick() {
         }
 
 
-        if (penalty_dots) {
+        if (_penalty_dots) {
             // Don't draw right now, in a penalty
-            penalty_dots--;
+            _penalty_dots--;
         } else {
             // Draw!
-            int framebuffer_index = ((int) draw_pixel_x) + ((int) _current_scanline) * SCREEN_W;
+            int framebuffer_index = ((int) _draw_pixel_x) + ((int) _current_scanline) * SCREEN_W;
 
             // Sprites:
             bool drew_sprite = false;
             if (_obj_enabled && sprite_to_draw) {
-                uint8_t x_diff = (draw_pixel_x + 16) - sprite_to_draw->x_position;
+                uint8_t x_diff = (_draw_pixel_x + 16) - sprite_to_draw->x_position;
                 uint8_t y_diff = (_current_scanline + 16) - sprite_to_draw->y_position;
                 uint8_t tile_index = sprite_to_draw->tile_index;
                 if (_obj_tall) {
@@ -159,13 +152,8 @@ void PPU::tick() {
                     draw_pixel_of_sprite_y = 7 - draw_pixel_of_sprite_y;
                 }
 
-                uint16_t tile_addr = TILE_BLOCK0_ADDR + (((uint16_t) tile_index) * 0x10);
-
-                uint8_t graphics_lsb = gb.address_space[tile_addr + (draw_pixel_of_sprite_y * 2)];
-                uint8_t graphics_msb = gb.address_space[tile_addr + 1 + (draw_pixel_of_sprite_y * 2)];
-
-                uint8_t tile_pixel_mask = 1 << (7 - draw_pixel_of_sprite_x);
-                uint8_t pixel_value = ((graphics_msb & tile_pixel_mask) != 0) << 1 | ((graphics_lsb & tile_pixel_mask) != 0);
+                uint16_t sprite_tile_addr = TILE_BLOCK0_ADDR + (((uint16_t) tile_index) * 0x10);
+                uint8_t pixel_value = get_pixel_of_tile(sprite_tile_addr, draw_pixel_of_sprite_x, draw_pixel_of_sprite_y);
 
                 if (pixel_value != 0) {
                     uint8_t final_color_index = _obj_palettes[sprite_to_draw->dmg_palette()][pixel_value];
@@ -174,58 +162,85 @@ void PPU::tick() {
                 }
             }
 
-            // Tiles:
-            uint16_t tilemap_addr = _bg_tilemap_high ? TILEMAP1_ADDR : TILEMAP0_ADDR;
-            uint8_t tilemap_index = gb.address_space[(uint16_t) (tilemap_addr + tilemap_x) + (tilemap_y * 32)];
+            // TODO: window bugs
+            if (_window_enabled && _current_scanline >= _window_scroll_y && (_draw_pixel_x + 7) >= _window_scroll_x) {
+                // Window:
+                uint8_t target_pixel_in_window_x = _draw_pixel_x + 7 - _window_scroll_x;
+                uint8_t target_pixel_in_window_y = _current_scanline - _window_scroll_y;
 
-            uint16_t tile_addr;
-            if (_bg_tile_data_low) {
-                tile_addr = TILE_BLOCK0_ADDR + ((uint16_t) tilemap_index) * 0x10;
+                uint8_t window_tilemap_x = target_pixel_in_window_x / 8;
+                uint8_t window_tilemap_y = target_pixel_in_window_y / 8;
+                uint8_t draw_pixel_of_window_tile_x = target_pixel_in_window_x % 8;
+                uint8_t draw_pixel_of_window_tile_y = target_pixel_in_window_y % 8;
+
+                uint16_t window_tilemap_addr = _window_tilemap_high ? TILEMAP1_ADDR : TILEMAP0_ADDR;
+                uint8_t window_tile_index = gb.address_space[window_tilemap_addr + window_tilemap_x + (window_tilemap_y * 32)];
+
+                uint16_t window_tile_addr;
+                if (_bg_tile_data_low) {
+                    window_tile_addr = TILE_BLOCK0_ADDR + ((uint16_t) window_tile_index) * 0x10;
+                } else {
+                    window_tile_addr = TILE_BLOCK2_ADDR - ((int16_t) window_tile_index) * 0x10;
+                }
+
+                uint8_t pixel_value = get_pixel_of_tile(window_tile_addr, draw_pixel_of_window_tile_x, draw_pixel_of_window_tile_y);
+
+                if (!drew_sprite || (sprite_to_draw->priority() && pixel_value != 0)) {
+                    // Draw, either over the sprite or there's no sprite at all.
+                    uint8_t final_color_index = _bg_palette[pixel_value];
+
+                    ((uint32_t*) framebuffer)[framebuffer_index] = SCREEN_COLORS[final_color_index];
+                }
+
             } else {
-                tile_addr = TILE_BLOCK2_ADDR - ((int16_t) tilemap_index) * 0x10;
+                // Background:
+                uint16_t bg_tilemap_addr = _bg_tilemap_high ? TILEMAP1_ADDR : TILEMAP0_ADDR;
+                uint8_t bg_tile_index = gb.address_space[bg_tilemap_addr + bg_tilemap_x + (bg_tilemap_y * 32)];
+
+                uint16_t bg_tile_addr;
+                if (_bg_tile_data_low) {
+                    bg_tile_addr = TILE_BLOCK0_ADDR + ((uint16_t) bg_tile_index) * 0x10;
+                } else {
+                    bg_tile_addr = TILE_BLOCK2_ADDR - ((int16_t) bg_tile_index) * 0x10;
+                }
+
+                uint8_t pixel_value = get_pixel_of_tile(bg_tile_addr, draw_pixel_of_bg_tile_x, draw_pixel_of_bg_tile_y);
+
+                if (!drew_sprite || (sprite_to_draw->priority() && pixel_value != 0)) {
+                    // Draw, either over the sprite or there's no sprite at all.
+                    uint8_t final_color_index = _bg_palette[pixel_value];
+
+                    ((uint32_t*) framebuffer)[framebuffer_index] = SCREEN_COLORS[final_color_index];
+                }
             }
 
-            uint8_t graphics_lsb = gb.address_space[tile_addr + (draw_pixel_of_tile_y * 2)];
-            uint8_t graphics_msb = gb.address_space[tile_addr + 1 + (draw_pixel_of_tile_y * 2)];
-
-            uint8_t tile_pixel_mask = 1 << (7 - draw_pixel_of_tile_x);
-            uint8_t pixel_value = ((graphics_msb & tile_pixel_mask) != 0) << 1 | ((graphics_lsb & tile_pixel_mask) != 0);
-
-            if (!sprite_to_draw || (sprite_to_draw->priority() && pixel_value != 0)) {
-                // Draw, either over the sprite or there's no sprite at all.
-                uint8_t final_color_index = _bg_palette[pixel_value];
-
-                ((uint32_t*) framebuffer)[framebuffer_index] = SCREEN_COLORS[final_color_index];
-            }
-
-
-            if (++draw_pixel_x == SCREEN_W) {
+            if (++_draw_pixel_x == SCREEN_W) {
                 // Done drawing
-                mode = LCDDrawMode::HBlank;
-                last_drawn_sprite_tile_x = -1;
+                _mode = LCDDrawMode::HBlank;
+                _last_drawn_sprite_tile_x = -1;
             }
         }
     }
 
-    dots++;
-    if (dots == DOTS_PER_SCANLINE) {
+    _dots++;
+    if (_dots == DOTS_PER_SCANLINE) {
         // Next scanline
-        dots = 0;
-        draw_pixel_x = 0;
+        _dots = 0;
+        _draw_pixel_x = 0;
         _current_scanline++;
 
         if (_current_scanline == SCREEN_H) {
             // Entering VBlank
-            mode = LCDDrawMode::VBlank;
+            _mode = LCDDrawMode::VBlank;
             gb.request_interrupt(Interrupts::VBlank);
 
-        } else if (mode == LCDDrawMode::HBlank) {
+        } else if (_mode == LCDDrawMode::HBlank) {
             // Back to OAM
-            mode = LCDDrawMode::OAM_Scan;
+            _mode = LCDDrawMode::OAM_Scan;
         } else if (_current_scanline == SCANLINES_PER_FRAME) {
             // Next frame
             _current_scanline = 0;
-            mode = LCDDrawMode::OAM_Scan;
+            _mode = LCDDrawMode::OAM_Scan;
         }
     }
 
@@ -234,10 +249,18 @@ void PPU::tick() {
         // LYC interrupt
         gb.request_interrupt(Interrupts::Stat);
 
-    } else if (previous_draw_mode != mode && mode <= 2 && _mode_interrupt_select[mode]) {
+    } else if (previous_draw_mode != _mode && _mode <= 2 && _mode_interrupt_select[_mode]) {
         // Mode change interrupts
         gb.request_interrupt(Interrupts::Stat);
     }
+}
+
+uint8_t PPU::get_pixel_of_tile(uint16_t tile_addr, uint8_t x, uint8_t y) const {
+    uint8_t graphics_lsb = gb.address_space[tile_addr + (y * 2)];
+    uint8_t graphics_msb = gb.address_space[tile_addr + 1 + (y * 2)];
+
+    uint8_t tile_pixel_mask = 1 << (7 - x);
+    return ((graphics_msb & tile_pixel_mask) != 0) << 1 | ((graphics_lsb & tile_pixel_mask) != 0);
 }
 
 uint8_t PPU::get_register(uint16_t address) {
@@ -246,7 +269,7 @@ uint8_t PPU::get_register(uint16_t address) {
     case LYC: return _compare_scanline;
     case STAT: {
         uint8_t result = 0;
-        result |= ((uint8_t) mode) & 0b11;
+        result |= ((uint8_t) _mode) & 0b11;
         result = utils::set_bit_value(result, 2, _current_scanline == _compare_scanline);
         result = utils::set_bit_value(result, 3, _compare_scanline_interrupt_select);
         result = utils::set_bit_value(result, 4, _mode_interrupt_select[0]);

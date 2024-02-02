@@ -2,6 +2,7 @@
 #include <initializer_list>
 #include <stdint.h>
 #include "apu.h"
+#include "cartridge.h"
 #include "cpu.h"
 #include "dmacontroller.h"
 #include "joypad.h"
@@ -18,6 +19,7 @@ constexpr uint16_t IO_REGISTERS_END = 0xFF7F;
 class GBSystem {
 
     protected:
+    Cartridge _cartridge = Cartridge(*this);
     CPU _cpu = CPU(*this);
     PPU _ppu = PPU(*this);
     APU _apu = APU(*this);
@@ -42,8 +44,8 @@ class GBSystem {
     bool tick();
     void reset();
 
-    uint8_t get_address_space_byte(uint16_t addr);
-    void set_address_space_byte(uint16_t addr, uint8_t value);
+    uint8_t read_address(uint16_t addr);
+    void write_address(uint16_t addr, uint8_t value);
 
     void add_register_callbacks(GBComponent* component, std::initializer_list<uint16_t> addresses);
     void add_register_callbacks_range(GBComponent* component, uint16_t address_start, uint16_t address_end_exclusive);
@@ -67,6 +69,10 @@ class GBSystem {
 
     DMAController& dma() {
         return _dma_controller;
+    }
+
+    Cartridge& cartridge() {
+        return _cartridge;
     }
 
     bool cgb_mode() const {

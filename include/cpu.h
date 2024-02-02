@@ -2,25 +2,26 @@
 #include <stdint.h>
 #include "instructions.h"
 #include "gbcomponent.h"
+#include "utils.h"
 
 struct Flags {
     bool zero, subtraction, half_carry, carry;
 
     uint8_t to_byte() const {
         uint8_t result = 0;
-        result |= zero << 7;
-        result |= subtraction << 6;
-        result |= half_carry << 5;
-        result |= carry << 4;
+        result = utils::set_bit_value(result, 7, zero);
+        result = utils::set_bit_value(result, 6, subtraction);
+        result = utils::set_bit_value(result, 5, half_carry);
+        result = utils::set_bit_value(result, 4, carry);
         return result;
     }
 
     static Flags from_byte(uint8_t value) {
         Flags flags;
-        flags.zero = (value & (1 << 7)) != 0;
-        flags.subtraction = (value & (1 << 6)) != 0;
-        flags.half_carry = (value & (1 << 5)) != 0;
-        flags.carry = (value & (1 << 4)) != 0;
+        flags.zero = utils::get_bit_value(value, 7);
+        flags.subtraction = utils::get_bit_value(value, 6);
+        flags.half_carry = utils::get_bit_value(value, 5);
+        flags.carry = utils::get_bit_value(value, 4);
         return flags;
     }
 };
@@ -100,6 +101,9 @@ class CPU : public GBComponent {
     public:
     Registers registers;
     bool ime_flag = false;
+    bool ime_enable_next_cycle = false;
+    bool halted = false;
+    bool halt_bug = false;
 
     uint8_t wait_ticks = 0;
 

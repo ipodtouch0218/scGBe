@@ -42,18 +42,18 @@ uint16_t PulseChannel::calculate_sweep_period() {
 }
 
 void PulseChannel::div_tick(uint8_t div_apu) {
+    SoundChannel::div_tick(div_apu);
+
     if (!_active || !_dac_enabled) {
         return;
     }
-
-    SoundChannel::div_tick(div_apu);
 
     if (_has_frequency_sweep && _frequency_sweep_enabled && (div_apu % 4) == 0) {
         // Frequency sweep
         if (_frequency_sweep_timer-- == 0) {
             _period = calculate_sweep_period();
             _frequency_sweep_timer = _frequency_sweep_pace;
-            _frequency_sweep_enabled = _frequency_sweep_pace != 0;
+            // _frequency_sweep_enabled = _frequency_sweep_pace != 0;
         }
     }
 }
@@ -79,8 +79,9 @@ void PulseChannel::trigger() {
 
     if (_has_frequency_sweep) {
         _frequency_sweep_timer = _frequency_sweep_pace;
-        _frequency_sweep_enabled = _frequency_sweep_pace != 0;
-        if (_frequency_sweep_enabled) {
+        _frequency_sweep_enabled = _frequency_sweep_step;
+
+        if (_frequency_sweep_step) {
             calculate_sweep_period();
         }
     }
@@ -93,14 +94,14 @@ uint8_t PulseChannel::get_register(uint16_t address) {
             return 0xFF;
         }
 
-        uint8_t value = 0;
+        uint8_t value = 0b10000000;
         value |= _frequency_sweep_step & 0b111;
         value = utils::set_bit_value(value, 3, _frequency_sweep_downwards);
         value |= (_frequency_sweep_pace & 0b111) << 4;
         return value;
     }
     case 1: { // NRx1: Duty Cycle
-        return _duty_cycle << 6;
+        return 0b00111111 | (_duty_cycle << 6);
     }
     case 2: { // NRx2: Initial Volume, Volume Sweep
         uint8_t value = 0;
@@ -113,7 +114,7 @@ uint8_t PulseChannel::get_register(uint16_t address) {
         return 0xFF;
     }
     case 4: { // NRx4: Length Enable
-        return utils::set_bit_value(0, 6, _length_enable);
+        return utils::set_bit_value(0xFF, 6, _length_enable);
     }
     default: return 0xFF;
     }
@@ -129,6 +130,10 @@ void PulseChannel::set_register(uint16_t address, uint8_t value) {
         _frequency_sweep_step = value & 0b111;
         _frequency_sweep_downwards = utils::get_bit_value(value, 3);
         _frequency_sweep_pace = (value >> 4) & 0b111;
+        if (_frequency_sweep_pace == 0) {
+            _frequency_sweep_pace = 8;
+        }
+        _frequency_sweep_enabled = _frequency_sweep_step;
         break;
     }
     case 1: { // NRx1: Duty Cycle, Initial Length Timer
@@ -142,9 +147,11 @@ void PulseChannel::set_register(uint16_t address, uint8_t value) {
         _volume_sweep_increments = utils::get_bit_value(value, 3);
         _initial_volume = (value >> 4) & 0b1111;
         _volume = _initial_volume;
-        _dac_enabled = value & 0b11111;
+        _dac_enabled = value & 0b11111000;
 
-        _active &= _dac_enabled;
+        if (!_dac_enabled) {
+            _active = false;
+        }
         break;
     }
     case 3: { // NRx3: Period Low
@@ -163,4 +170,18 @@ void PulseChannel::set_register(uint16_t address, uint8_t value) {
         break;
     }
     }
+}
+
+void PulseChannel::clear_registers() {
+    _length_timer = 63;
+    _frequency_sweep_step = 0b111;
+    _frequency_sweep_downwards = true;
+    _frequency_sweep_pace = 0b111;
+    _duty_cycle = 0b11;
+    _volume_sweep_pace = 0b111;
+    _volume_sweep_increments = true;
+    _volume = 0b1111;
+    _initial_volume = 0b1111;
+    _period = 0b111111111111;
+    _length_enable = true;
 }

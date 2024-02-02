@@ -92,9 +92,11 @@ void NoiseChannel::set_register(uint16_t address, uint8_t value) {
         _volume_sweep_increments = utils::get_bit_value(value, 3);
         _initial_volume = (value >> 4) & 0b1111;
         _volume = _initial_volume;
-        _dac_enabled = value & 0b11111;
+        _dac_enabled = value & 0b11111000;
 
-        _active &= _dac_enabled;
+        if (!_dac_enabled) {
+            _active = false;
+        }
         break;
     }
     case 3: { // NRx3: Clock Shift, LSFR Width, Clock Divider
@@ -112,4 +114,17 @@ void NoiseChannel::set_register(uint16_t address, uint8_t value) {
         break;
     }
     }
+}
+
+void NoiseChannel::clear_registers() {
+    _length_timer = 63;
+    _volume_sweep_pace = 0b111;
+    _volume_sweep_timer = 0b111;
+    _volume_sweep_increments = true;
+    _initial_volume = 0b1111;
+    _volume = 0b1111;
+    _clock_divider = 0b111;
+    _7_bit_lsfr = true;
+    _clock_shift = 0b1111;
+    _length_enable = true;
 }

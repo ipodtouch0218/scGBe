@@ -272,6 +272,30 @@ sfml-audio/fast:
 	$(MAKE) $(MAKESILENT) -f _deps\sfml-build\src\SFML\Audio\CMakeFiles\sfml-audio.dir\build.make _deps/sfml-build/src/SFML/Audio/CMakeFiles/sfml-audio.dir/build
 .PHONY : sfml-audio/fast
 
+src/cartridge.obj: src/cartridge.cpp.obj
+.PHONY : src/cartridge.obj
+
+# target to build an object file
+src/cartridge.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/cartridge.cpp.obj
+.PHONY : src/cartridge.cpp.obj
+
+src/cartridge.i: src/cartridge.cpp.i
+.PHONY : src/cartridge.i
+
+# target to preprocess a source file
+src/cartridge.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/cartridge.cpp.i
+.PHONY : src/cartridge.cpp.i
+
+src/cartridge.s: src/cartridge.cpp.s
+.PHONY : src/cartridge.s
+
+# target to generate assembly for a file
+src/cartridge.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\gbemu.dir\build.make CMakeFiles/gbemu.dir/src/cartridge.cpp.s
+.PHONY : src/cartridge.cpp.s
+
 src/cpu.obj: src/cpu.cpp.obj
 .PHONY : src/cpu.obj
 
@@ -581,6 +605,9 @@ help:
 	@echo ... sfml-network
 	@echo ... sfml-system
 	@echo ... sfml-window
+	@echo ... src/cartridge.obj
+	@echo ... src/cartridge.i
+	@echo ... src/cartridge.s
 	@echo ... src/cpu.obj
 	@echo ... src/cpu.i
 	@echo ... src/cpu.s

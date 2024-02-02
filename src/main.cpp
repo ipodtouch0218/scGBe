@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstring>
 #include <iostream>
+#include <iterator>
 #include <fstream>
 #include <thread>
 
@@ -16,7 +17,9 @@
 
 constexpr int WINDOW_SCALE = 2;
 
-GBSystem* gb;
+GBSystem* gb = nullptr;
+bool request_dump = false;
+bool log_on = false;
 extern uint8_t inputs;
 
 void window_thread() {
@@ -38,6 +41,11 @@ void window_thread() {
                 break;
             }
             case sf::Event::KeyReleased: {
+                if (event.key.code == 57) {
+                    log_on = false;
+                    break;
+                }
+                bool valid_key = true;
                 uint8_t index;
                 switch (event.key.code) {
                 case 58: index = 7; break;
@@ -48,11 +56,19 @@ void window_thread() {
                 case 73: index = 2; break;
                 case 71: index = 1; break;
                 case 72: index = 0; break;
+                default: valid_key = false; break;
                 }
-                inputs = utils::set_bit_value(inputs, index, 1);
+                if (valid_key) {
+                    inputs = utils::set_bit_value(inputs, index, 1);
+                }
                 break;
             }
             case sf::Event::KeyPressed: {
+                if (event.key.code == 57) {
+                    log_on = true;
+                    break;
+                }
+                bool valid_key = true;
                 uint8_t index;
                 switch (event.key.code) {
                 case 58: index = 7; break;
@@ -63,8 +79,11 @@ void window_thread() {
                 case 73: index = 2; break;
                 case 71: index = 1; break;
                 case 72: index = 0; break;
+                default: valid_key = false; break;
                 }
-                inputs = utils::set_bit_value(inputs, index, 0);
+                if (valid_key) {
+                    inputs = utils::set_bit_value(inputs, index, 0);
+                }
                 break;
             }
             }
@@ -122,7 +141,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    std::ifstream rom_file(argv[1]);
+    std::ifstream rom_file(argv[1], std::ios::in | std::ios::binary);
     if (!rom_file.is_open()) {
         std::cerr << "Failed to open " << argv[1] << std::endl;
         return 1;
@@ -130,9 +149,10 @@ int main(int argc, char* argv[]) {
 
     gb = new GBSystem(false);
 
-    rom_file.read((char*) (gb->address_space), 0x7FFF);
+    std::vector<uint8_t> rom((std::istreambuf_iterator<char>(rom_file)), std::istreambuf_iterator<char>());
     rom_file.close();
 
+    gb->cartridge().load_rom(rom);
     gb->reset();
 
     sf::Thread thread(&window_thread);
