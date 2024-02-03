@@ -1,6 +1,7 @@
 #pragma once
 #include <initializer_list>
 #include <stdint.h>
+#include <fstream>
 #include "apu.h"
 #include "cartridge.h"
 #include "cpu.h"

@@ -19,7 +19,10 @@ void DMAController::tick() {
 
 uint8_t DMAController::get_register(uint16_t address) {
     switch (address) {
-    case DMA: return 0xFF; // Is this correct?
+    case DMA: {
+        // Source: https://gekkio.fi/files/gb-docs/gbctr.pdf
+        return _source_addr_msb;
+    }
     default: return 0xFF;
     }
 }

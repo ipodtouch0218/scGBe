@@ -12,6 +12,8 @@ Cartridge::Cartridge(GBSystem& gb_param) :
 void Cartridge::load_rom(std::vector<uint8_t>& bytes) {
     _rom = bytes;
 
+    std::cout << (int) _rom[0x0147] << std::endl;
+
     switch (_rom[0x0147]) {
     case 0x01:
     case 0x02:
@@ -19,8 +21,14 @@ void Cartridge::load_rom(std::vector<uint8_t>& bytes) {
         _mbc = MBC::MBC1;
         break;
     }
+    case 0x05:
+    case 0x06: {
+        _mbc = MBC::MBC2;
+        break;
+    }
     default: {
         _mbc = MBC::None;
+        break;
     }
     }
     _rom_size = _rom[0x0148];
@@ -49,6 +57,10 @@ void Cartridge::load_rom(std::vector<uint8_t>& bytes) {
         break;
     }
     }
+    if (_mbc == MBC::MBC2) {
+        // 512 4 bit bytes
+        sram_bytes = 512;
+    }
     _sram = std::vector<uint8_t>(sram_bytes);
 }
 
@@ -56,10 +68,9 @@ uint8_t Cartridge::read_address(uint16_t address) {
     uint32_t target_addr = address;
     if (address >= ROM_BANK0 && address < ROM_BANK1 + ROM_BANK_SIZE) {
         // ROM
-        uint8_t effective_rom_bank;
         switch (_mbc) {
         case MBC::MBC1: {
-            effective_rom_bank = _rom_bank & (_rom_size <= 0x03 ? 0xF : 0x1F);
+            uint8_t effective_rom_bank = _rom_bank & (_rom_size <= 0x03 ? 0xF : 0x1F);
             if (address >= ROM_BANK0 && address < ROM_BANK1) {
                 if (_banking_mode) {
                     // Advanced mode
@@ -71,12 +82,19 @@ uint8_t Cartridge::read_address(uint16_t address) {
             } else {
                 // If lower 5 bits == 1, set lsb
                 effective_rom_bank |= ((_rom_bank & 0x1F) == 0);
-                effective_rom_bank--;
             }
-            target_addr = address + (((uint32_t) effective_rom_bank) * ROM_BANK_SIZE);
+            target_addr = (address % ROM_BANK_SIZE) + (((uint32_t) effective_rom_bank) * ROM_BANK_SIZE);
+            break;
+        }
+        case MBC::MBC2: {
+            uint8_t effective_rom_bank = (_rom_bank == 0) ? 1 : _rom_bank;
+            if (address >= ROM_BANK1) {
+                target_addr = (address % ROM_BANK_SIZE) + (((uint32_t) effective_rom_bank) * ROM_BANK_SIZE);
+            }
             break;
         }
         }
+
         return _rom[target_addr];
     } else {
         // SRAM
@@ -84,11 +102,19 @@ uint8_t Cartridge::read_address(uint16_t address) {
             return 0xFF;
         }
 
+        target_addr -= SRAM_BANK;
         switch (_mbc) {
         case MBC::MBC1: {
             if (_banking_mode) {
-                target_addr = address + (_sram_bank * ROM_BANK_SIZE);
+                target_addr += (_sram_bank * ROM_BANK_SIZE);
             }
+            break;
+        }
+        case MBC::MBC2: {
+            // Mirrored across all of sram bank
+            target_addr %= 512;
+            // Only lower 4 bits are usable
+            return _sram[target_addr] & 0xF;
         }
         }
 
@@ -136,6 +162,31 @@ void Cartridge::write_address(uint16_t address, uint8_t value) {
                 break;
             }
             _sram[address] = value;
+        }
+        break;
+    }
+    case MBC::MBC2: {
+        if (address <= 0x3FFF) {
+            // RAM enable and ROM Bank number lower bits selection
+            if (address & 0x100) {
+                // ROM bank (16 max)
+                _rom_bank = (value & 0xF);
+            } else {
+                // SRAM enable
+                _sram_enabled = (value == 0x0A);
+            }
+
+        } else if (address >= SRAM_BANK && address < SRAM_BANK + SRAM_BANK_SIZE) {
+            // SRAM
+            if (!_sram_enabled) {
+                break;
+            }
+
+            address -= SRAM_BANK;
+            if (address >= _sram.size()) {
+                break;
+            }
+            _sram[address] = value & 0xF;
         }
         break;
     }

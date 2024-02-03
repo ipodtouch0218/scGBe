@@ -5,7 +5,7 @@ class DMAController : public GBComponent {
 
     protected:
     uint8_t _counter = -1;
-    uint16_t _source_addr_msb = 0;
+    uint16_t _source_addr_msb; // purposefully not initialized
 
     public:
     DMAController(GBSystem& gb);

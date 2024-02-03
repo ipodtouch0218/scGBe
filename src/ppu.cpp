@@ -79,7 +79,7 @@ void PPU::tick() {
     if (_mode == LCDDrawMode::Drawing) {
         // Out here, used for determining the obj penalties
         uint8_t target_pixel_in_bg_x = _draw_pixel_x - _bg_scroll_x;
-        uint8_t target_pixel_in_bg_y = _current_scanline - _bg_scroll_y;
+        uint8_t target_pixel_in_bg_y = _current_scanline + _bg_scroll_y;
 
         uint8_t bg_tilemap_x = (target_pixel_in_bg_x / 8);
         uint8_t bg_tilemap_y = (target_pixel_in_bg_y / 8);
@@ -91,7 +91,7 @@ void PPU::tick() {
             _penalty_dots += (_bg_scroll_x % 8); // Discarding pixels in leftmost tile
         }
 
-        OAMEntry* sprite_to_draw = nullptr;
+        std::vector<OAMEntry*> sprites_to_draw;
         for (OAMEntry* entry : _scanline_sprite_buffer) {
             uint8_t x_diff = (_draw_pixel_x + 8) - entry->x_position;
             if (x_diff >= 8 && x_diff != -1) {
@@ -114,11 +114,7 @@ void PPU::tick() {
                 }
             }
 
-            if (sprite_to_draw == nullptr) {
-                sprite_to_draw = entry;
-            }
-
-            // Don't break, since we have to consider other sprites' penalties
+            sprites_to_draw.push_back(entry);
         }
 
 
@@ -130,39 +126,43 @@ void PPU::tick() {
             int framebuffer_index = ((int) _draw_pixel_x) + ((int) _current_scanline) * SCREEN_W;
 
             // Sprites:
-            bool drew_sprite = false;
-            if (_obj_enabled && sprite_to_draw) {
-                uint8_t x_diff = (_draw_pixel_x + 16) - sprite_to_draw->x_position;
-                uint8_t y_diff = (_current_scanline + 16) - sprite_to_draw->y_position;
-                uint8_t tile_index = sprite_to_draw->tile_index;
-                if (_obj_tall) {
-                    if (y_diff > 8 ^ sprite_to_draw->y_flip()) {
-                        tile_index | 0x01;
-                    } else {
-                        tile_index & 0xFE;
+            OAMEntry* drew_sprite = nullptr;
+            if (_obj_enabled) {
+                for (OAMEntry* sprite : sprites_to_draw) {
+                    uint8_t x_diff = (_draw_pixel_x + 16) - sprite->x_position;
+                    uint8_t y_diff = (_current_scanline + 16) - sprite->y_position;
+                    uint8_t tile_index = sprite->tile_index;
+                    if (_obj_tall) {
+                        if (y_diff > 7 ^ sprite->y_flip()) {
+                            tile_index |= 0x01;
+                        } else {
+                            tile_index &= 0xFE;
+                        }
                     }
-                }
 
-                uint8_t draw_pixel_of_sprite_x = x_diff % 8;
-                if (sprite_to_draw->x_flip()) {
-                    draw_pixel_of_sprite_x = 7 - draw_pixel_of_sprite_x;
-                }
-                uint8_t draw_pixel_of_sprite_y = y_diff % 8;
-                if (sprite_to_draw->y_flip()) {
-                    draw_pixel_of_sprite_y = 7 - draw_pixel_of_sprite_y;
-                }
+                    uint8_t draw_pixel_of_sprite_x = x_diff % 8;
+                    if (sprite->x_flip()) {
+                        draw_pixel_of_sprite_x = 7 - draw_pixel_of_sprite_x;
+                    }
+                    uint8_t draw_pixel_of_sprite_y = y_diff % 8;
+                    if (sprite->y_flip()) {
+                        draw_pixel_of_sprite_y = 7 - draw_pixel_of_sprite_y;
+                    }
 
-                uint16_t sprite_tile_addr = TILE_BLOCK0_ADDR + (((uint16_t) tile_index) * 0x10);
-                uint8_t pixel_value = get_pixel_of_tile(sprite_tile_addr, draw_pixel_of_sprite_x, draw_pixel_of_sprite_y);
+                    uint16_t offset = tile_index;
+                    uint16_t sprite_tile_addr = TILE_BLOCK0_ADDR + (offset * 0x10);
+                    uint8_t pixel_value = get_pixel_of_tile(sprite_tile_addr, draw_pixel_of_sprite_x, draw_pixel_of_sprite_y);
 
-                if (pixel_value != 0) {
-                    uint8_t final_color_index = _obj_palettes[sprite_to_draw->dmg_palette()][pixel_value];
-                    ((uint32_t*) framebuffer)[framebuffer_index] = SCREEN_COLORS[final_color_index];
-                    drew_sprite = true;
+                    if (pixel_value != 0) {
+                        uint8_t final_color_index = _obj_palettes[sprite->dmg_palette()][pixel_value];
+                        ((uint32_t*) framebuffer)[framebuffer_index] = SCREEN_COLORS[final_color_index];
+                        drew_sprite = sprite;
+                        break;
+                    }
                 }
             }
 
-            // TODO: window bugs
+            // TODO: window bugs (scx==0, stuff like that.)
             if (_window_enabled && _current_scanline >= _window_scroll_y && (_draw_pixel_x + 7) >= _window_scroll_x) {
                 // Window:
                 uint8_t target_pixel_in_window_x = _draw_pixel_x + 7 - _window_scroll_x;
@@ -178,14 +178,16 @@ void PPU::tick() {
 
                 uint16_t window_tile_addr;
                 if (_bg_tile_data_low) {
-                    window_tile_addr = TILE_BLOCK0_ADDR + ((uint16_t) window_tile_index) * 0x10;
+                    uint32_t offset = window_tile_index;
+                    window_tile_addr = TILE_BLOCK0_ADDR + (offset * 0x10);
                 } else {
-                    window_tile_addr = TILE_BLOCK2_ADDR - ((int16_t) window_tile_index) * 0x10;
+                    uint32_t offset = (int8_t) window_tile_index;
+                    window_tile_addr = TILE_BLOCK2_ADDR + (offset * 0x10);
                 }
 
                 uint8_t pixel_value = get_pixel_of_tile(window_tile_addr, draw_pixel_of_window_tile_x, draw_pixel_of_window_tile_y);
 
-                if (!drew_sprite || (sprite_to_draw->priority() && pixel_value != 0)) {
+                if (!drew_sprite || (drew_sprite->priority() && pixel_value != 0)) {
                     // Draw, either over the sprite or there's no sprite at all.
                     uint8_t final_color_index = _bg_palette[pixel_value];
 
@@ -199,14 +201,16 @@ void PPU::tick() {
 
                 uint16_t bg_tile_addr;
                 if (_bg_tile_data_low) {
-                    bg_tile_addr = TILE_BLOCK0_ADDR + ((uint16_t) bg_tile_index) * 0x10;
+                    uint32_t offset = bg_tile_index;
+                    bg_tile_addr = TILE_BLOCK0_ADDR + (offset * 0x10);
                 } else {
-                    bg_tile_addr = TILE_BLOCK2_ADDR - ((int16_t) bg_tile_index) * 0x10;
+                    int32_t offset = (int8_t) bg_tile_index;
+                    bg_tile_addr = TILE_BLOCK2_ADDR + (offset * 0x10);
                 }
 
                 uint8_t pixel_value = get_pixel_of_tile(bg_tile_addr, draw_pixel_of_bg_tile_x, draw_pixel_of_bg_tile_y);
 
-                if (!drew_sprite || (sprite_to_draw->priority() && pixel_value != 0)) {
+                if (!drew_sprite || (drew_sprite->priority() && pixel_value != 0)) {
                     // Draw, either over the sprite or there's no sprite at all.
                     uint8_t final_color_index = _bg_palette[pixel_value];
 
@@ -371,6 +375,14 @@ void PPU::set_register(uint16_t address, uint8_t value) {
         _obj_palettes[1][1] = (value >> 2) & 0b11;
         _obj_palettes[1][2] = (value >> 4) & 0b11;
         _obj_palettes[1][3] = (value >> 6) & 0b11;
+        break;
+    }
+    case WY: {
+        _window_scroll_y = value;
+        break;
+    }
+    case WX: {
+        _window_scroll_x = value;
         break;
     }
     }

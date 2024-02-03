@@ -871,6 +871,7 @@ uint8_t CPU::execute() {
     }
 
     default: {
+        std::cerr << "Unknown opcode! 0x" << std::hex << std::uppercase << std::setw(2) << (int) opcode << std::endl;
         throw std::invalid_argument("Unknown opcode " + opcode);
         return 1;
     }
