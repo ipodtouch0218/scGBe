@@ -81,7 +81,6 @@ uint8_t GBSystem::read_address(uint16_t addr) {
         // Cannot access vram during rendering mode 3
         if (addr >= 0x8000 && addr <= 0x9FFF && ppu().mode() == LCDDrawMode::Drawing) {
             std::cerr << "READ FROM VRAM WHILE PPU IS DRAWING!" << std::endl;
-            exit(4312);
             return 0xFF;
         }
         // Cannot access OAM during rendering modes 2 / 3

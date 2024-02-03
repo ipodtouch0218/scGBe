@@ -76,6 +76,7 @@ uint8_t Cartridge::read_address(uint16_t address) {
                     // Advanced mode
                     // Upper 2 bits control the lower rom bank
                     effective_rom_bank &= 0x60;
+                    std::cout << "advanced mode " << std::endl;
                 } else {
                     effective_rom_bank = 0;
                 }

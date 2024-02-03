@@ -15,7 +15,7 @@ constexpr uint32_t SCREEN_COLORS[] = {
 PPU::PPU(GBSystem& gb) :
     GBComponent::GBComponent(gb)
 {
-    gb.add_register_callbacks(this, {LY, LYC, STAT, LCDC, SCY, SCX, BGP, OBP0, OBP1, SCY, SCX});
+    gb.add_register_callbacks(this, {LY, LYC, STAT, LCDC, SCY, SCX, BGP, OBP0, OBP1, WY, WX});
     _scanline_sprite_buffer.reserve(10);
 }
 
@@ -78,13 +78,13 @@ void PPU::tick() {
 
     if (_mode == LCDDrawMode::Drawing) {
         // Out here, used for determining the obj penalties
-        uint8_t target_pixel_in_bg_x = _draw_pixel_x - _bg_scroll_x;
+        uint8_t target_pixel_in_bg_x = _draw_pixel_x + _bg_scroll_x;
         uint8_t target_pixel_in_bg_y = _current_scanline + _bg_scroll_y;
 
         uint8_t bg_tilemap_x = (target_pixel_in_bg_x / 8);
         uint8_t bg_tilemap_y = (target_pixel_in_bg_y / 8);
-        uint8_t draw_pixel_of_bg_tile_x = _draw_pixel_x % 8;
-        uint8_t draw_pixel_of_bg_tile_y = _current_scanline % 8;
+        uint8_t draw_pixel_of_bg_tile_x = target_pixel_in_bg_x % 8;
+        uint8_t draw_pixel_of_bg_tile_y = target_pixel_in_bg_y % 8;
 
         if (_dots == OAM_SCAN_DOTS) {
             _penalty_dots = 12; // 12 wasted cycles at the beginning
@@ -249,7 +249,7 @@ void PPU::tick() {
     }
 
     // Interrupts
-    if (_current_scanline == _compare_scanline && _compare_scanline_interrupt_select) {
+    if (_draw_pixel_x == 0 && _compare_scanline_interrupt_select && (_current_scanline == _compare_scanline)) {
         // LYC interrupt
         gb.request_interrupt(Interrupts::Stat);
 
@@ -275,10 +275,10 @@ uint8_t PPU::get_register(uint16_t address) {
         uint8_t result = 0;
         result |= ((uint8_t) _mode) & 0b11;
         result = utils::set_bit_value(result, 2, _current_scanline == _compare_scanline);
-        result = utils::set_bit_value(result, 3, _compare_scanline_interrupt_select);
-        result = utils::set_bit_value(result, 4, _mode_interrupt_select[0]);
-        result = utils::set_bit_value(result, 5, _mode_interrupt_select[1]);
-        result = utils::set_bit_value(result, 6, _mode_interrupt_select[2]);
+        result = utils::set_bit_value(result, 3, _mode_interrupt_select[0]);
+        result = utils::set_bit_value(result, 4, _mode_interrupt_select[1]);
+        result = utils::set_bit_value(result, 5, _mode_interrupt_select[2]);
+        result = utils::set_bit_value(result, 6, _compare_scanline_interrupt_select);
         return result;
     }
     case LCDC: {
@@ -291,6 +291,13 @@ uint8_t PPU::get_register(uint16_t address) {
         result = utils::set_bit_value(result, 5, _window_enabled);
         result = utils::set_bit_value(result, 6, _window_tilemap_high);
         result = utils::set_bit_value(result, 7, _enabled);
+
+        if (!_enabled) {
+            _current_scanline = 0;
+            _dots = 0;
+            _draw_pixel_x = 0;
+            _mode = LCDDrawMode::HBlank;
+        }
         return result;
     }
     case SCY: return _bg_scroll_y;
@@ -331,10 +338,10 @@ void PPU::set_register(uint16_t address, uint8_t value) {
         break;
     }
     case STAT: {
-        _compare_scanline_interrupt_select = utils::get_bit_value(value, 3);
-        _mode_interrupt_select[0] = utils::get_bit_value(value, 4);
-        _mode_interrupt_select[1] = utils::get_bit_value(value, 5);
-        _mode_interrupt_select[2] = utils::get_bit_value(value, 6);
+        _mode_interrupt_select[0] = utils::get_bit_value(value, 3);
+        _mode_interrupt_select[1] = utils::get_bit_value(value, 4);
+        _mode_interrupt_select[2] = utils::get_bit_value(value, 5);
+        _compare_scanline_interrupt_select = utils::get_bit_value(value, 6);
         break;
     }
     case LCDC: {

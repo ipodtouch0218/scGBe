@@ -872,6 +872,25 @@ uint8_t CPU::execute() {
 
     default: {
         std::cerr << "Unknown opcode! 0x" << std::hex << std::uppercase << std::setw(2) << (int) opcode << std::endl;
+        std::cerr << std::hex << std::uppercase << std::setfill('0') <<
+            "A:"       << std::setw(2) << (int) registers.a <<
+            " B:"      << std::setw(2) << (int) registers.b <<
+            " C:"      << std::setw(2) << (int) registers.c <<
+            " D:"      << std::setw(2) << (int) registers.d <<
+            " E:"      << std::setw(2) << (int) registers.e <<
+            " F:"      << std::setw(2) << (int) registers.flags.to_byte() <<
+            " H:"      << std::setw(2) << (int) registers.h <<
+            " L:"      << std::setw(2) << (int) registers.l <<
+            " SP:"     << std::setw(4) << (int) registers.sp <<
+            " PC:"     << std::setw(4) << (int) registers.pc <<
+            " PCMEM: " << std::setw(2) << (int) gb.read_address(registers.pc-3) <<
+            ","        << std::setw(2) << (int) gb.read_address(registers.pc-2) <<
+            ","        << std::setw(2) << (int) gb.read_address(registers.pc-1) <<
+            ","        << std::setw(2) << (int) gb.read_address(registers.pc+0) <<
+            ","        << std::setw(2) << (int) gb.read_address(registers.pc+1) <<
+            ","        << std::setw(2) << (int) gb.read_address(registers.pc+2) <<
+            ","        << std::setw(2) << (int) gb.read_address(registers.pc+3) <<
+            std::endl;
         throw std::invalid_argument("Unknown opcode " + opcode);
         return 1;
     }
