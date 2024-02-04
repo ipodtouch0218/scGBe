@@ -4,13 +4,6 @@
 
 class GBSystem;
 
-constexpr uint16_t ROM_BANK0 = 0x0000;
-constexpr uint16_t ROM_BANK1 = 0x4000;
-constexpr uint16_t ROM_BANK_SIZE = 0x4000;
-
-constexpr uint16_t SRAM_BANK = 0xA000;
-constexpr uint16_t SRAM_BANK_SIZE = 0x2000;
-
 namespace MBC {
     enum MBC {
         None,
@@ -43,6 +36,9 @@ class Cartridge {
     bool _sram_enabled = false;
     uint16_t _sram_bank = 0;
     uint8_t _sram_size = 0;
+
+    bool _rtc_latched = false;
+    uint8_t _latched_rtc_value = 0;
 
 
     public:

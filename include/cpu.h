@@ -98,11 +98,15 @@ struct Registers {
 };
 
 class CPU : public GBComponent {
+
+    private:
+    uint8_t _interrupt_flags = 0;
+    bool _ime_flag = false;
+    bool _halted = false;
+
     public:
     Registers registers;
-    bool ime_flag = false;
     bool ime_enable_next_cycle = false;
-    bool halted = false;
     bool halt_bug = false;
 
     uint8_t wait_ticks = 0;
@@ -115,13 +119,16 @@ class CPU : public GBComponent {
     uint8_t execute();
     uint8_t check_for_interrupts();
 
-    uint8_t get_register_byte(ByteRegister::ByteRegister target);
-    void set_register_byte(ByteRegister::ByteRegister target, uint8_t value);
-
-    uint16_t get_register_word(WordRegister::WordRegister target);
-    void set_register_word(WordRegister::WordRegister target, uint16_t value);
+    uint8_t read_io_register(uint16_t address);
+    void write_io_register(uint16_t address, uint8_t value);
 
     private:
+    uint8_t read_cpu_register_byte(ByteRegister::ByteRegister target);
+    void read_cpu_register_byte(ByteRegister::ByteRegister target, uint8_t value);
+
+    uint16_t read_cpu_register_word(WordRegister::WordRegister target);
+    void read_cpu_register_word(WordRegister::WordRegister target, uint16_t value);
+
     uint8_t add_byte_with_overflow(uint8_t value, bool add_carry);
     uint8_t sub_byte_with_overflow(uint8_t value, bool sub_carry);
 

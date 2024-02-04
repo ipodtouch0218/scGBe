@@ -54,19 +54,19 @@ int16_t APU::current_sample(bool right_channel) {
     return sum;
 }
 
-uint8_t APU::get_register(uint16_t address) {
+uint8_t APU::read_io_register(uint16_t address) {
     if (address != NR52 && !_enabled) {
         return 0xFF;
     }
 
     if (address >= SND_P1_ORIGIN && address < SND_P1_ORIGIN + 5) {
-        return pulse_channel_1.get_register(address);
+        return pulse_channel_1.read_io_register(address);
     } else if (address >= SND_P2_ORIGIN && address < SND_P2_ORIGIN + 5) {
-        return pulse_channel_2.get_register(address);
+        return pulse_channel_2.read_io_register(address);
     } else if ((address >= SND_WV_ORIGIN && address < SND_WV_ORIGIN + 5) || (address >= SND_WV_TABLE && address < SND_WV_TABLE + 16)) {
-        wave_channel_3.get_register(address);
+        wave_channel_3.read_io_register(address);
     } else if (address >= SND_NS_ORIGIN && address < SND_NS_ORIGIN + 5) {
-        noise_channel_4.get_register(address);
+        noise_channel_4.read_io_register(address);
     }
 
     switch (address) {
@@ -120,19 +120,19 @@ uint8_t APU::get_register(uint16_t address) {
     return 0xFF;
 }
 
-void APU::set_register(uint16_t address, uint8_t value) {
+void APU::write_io_register(uint16_t address, uint8_t value) {
     if (address != NR52 && !_enabled) {
         return;
     }
 
     if (address >= SND_P1_ORIGIN && address < SND_P1_ORIGIN + 5) {
-        pulse_channel_1.set_register(address, value);
+        pulse_channel_1.write_io_register(address, value);
     } else if (address >= SND_P2_ORIGIN && address < SND_P2_ORIGIN + 5) {
-        pulse_channel_2.set_register(address, value);
+        pulse_channel_2.write_io_register(address, value);
     } else if ((address >= SND_WV_ORIGIN && address < SND_WV_ORIGIN + 5) || (address >= SND_WV_TABLE && address < SND_WV_TABLE + 16)) {
-        wave_channel_3.set_register(address, value);
+        wave_channel_3.write_io_register(address, value);
     } else if (address >= SND_NS_ORIGIN && address < SND_NS_ORIGIN + 5) {
-        noise_channel_4.set_register(address, value);
+        noise_channel_4.write_io_register(address, value);
     }
 
     switch (address) {

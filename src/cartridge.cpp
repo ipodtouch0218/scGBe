@@ -1,5 +1,7 @@
 #include "cartridge.h"
+#include <ctime>
 #include <iostream>
+#include "memorymap.h"
 
 extern bool log_on;
 
@@ -12,8 +14,6 @@ Cartridge::Cartridge(GBSystem& gb_param) :
 void Cartridge::load_rom(std::vector<uint8_t>& bytes) {
     _rom = bytes;
 
-    std::cout << (int) _rom[0x0147] << std::endl;
-
     switch (_rom[0x0147]) {
     case 0x01:
     case 0x02:
@@ -24,6 +24,13 @@ void Cartridge::load_rom(std::vector<uint8_t>& bytes) {
     case 0x05:
     case 0x06: {
         _mbc = MBC::MBC2;
+        break;
+    }
+    case 0x10:
+    case 0x11:
+    case 0x12:
+    case 0x13: {
+        _mbc = MBC::MBC3;
         break;
     }
     default: {
@@ -40,7 +47,7 @@ void Cartridge::load_rom(std::vector<uint8_t>& bytes) {
         sram_bytes = 1 * 8192;
         break;
     }
-    case 0x43: {
+    case 0x03: {
         sram_bytes = 4 * 8192;
         break;
     }
@@ -66,17 +73,16 @@ void Cartridge::load_rom(std::vector<uint8_t>& bytes) {
 
 uint8_t Cartridge::read_address(uint16_t address) {
     uint32_t target_addr = address;
-    if (address >= ROM_BANK0 && address < ROM_BANK1 + ROM_BANK_SIZE) {
+    if (address >= ROM_START && address < (ROM_START + (ROM_SIZE * 2))) {
         // ROM
         switch (_mbc) {
         case MBC::MBC1: {
             uint8_t effective_rom_bank = _rom_bank & (_rom_size <= 0x03 ? 0xF : 0x1F);
-            if (address >= ROM_BANK0 && address < ROM_BANK1) {
+            if (address >= ROM_START && address < (ROM_START + ROM_SIZE)) {
                 if (_banking_mode) {
                     // Advanced mode
                     // Upper 2 bits control the lower rom bank
                     effective_rom_bank &= 0x60;
-                    std::cout << "advanced mode " << std::endl;
                 } else {
                     effective_rom_bank = 0;
                 }
@@ -84,18 +90,33 @@ uint8_t Cartridge::read_address(uint16_t address) {
                 // If lower 5 bits == 1, set lsb
                 effective_rom_bank |= ((_rom_bank & 0x1F) == 0);
             }
-            target_addr = (address % ROM_BANK_SIZE) + (((uint32_t) effective_rom_bank) * ROM_BANK_SIZE);
+            target_addr = (address % ROM_SIZE) + (((uint32_t) effective_rom_bank) * ROM_SIZE);
             break;
         }
         case MBC::MBC2: {
             uint8_t effective_rom_bank = (_rom_bank == 0) ? 1 : _rom_bank;
-            if (address >= ROM_BANK1) {
-                target_addr = (address % ROM_BANK_SIZE) + (((uint32_t) effective_rom_bank) * ROM_BANK_SIZE);
+            if (address >= (ROM_START + ROM_SIZE)) {
+                target_addr = (address % ROM_SIZE) + (((uint32_t) effective_rom_bank) * ROM_SIZE);
             }
+            break;
+        }
+        case MBC::MBC3: {
+            uint8_t effective_rom_bank = _rom_bank;
+            if (address >= (ROM_START + ROM_SIZE)) {
+                // If bank == 0, set it to 1.
+                effective_rom_bank |= (_rom_bank == 0);
+            } else {
+                effective_rom_bank = 0;
+            }
+
+            target_addr = (address % ROM_SIZE) + (((uint32_t) effective_rom_bank) * ROM_SIZE);
             break;
         }
         }
 
+        if (target_addr >= _rom.size()) {
+            return 0xFF;
+        }
         return _rom[target_addr];
     } else {
         // SRAM
@@ -103,11 +124,11 @@ uint8_t Cartridge::read_address(uint16_t address) {
             return 0xFF;
         }
 
-        target_addr -= SRAM_BANK;
+        target_addr -= SRAM_START;
         switch (_mbc) {
         case MBC::MBC1: {
             if (_banking_mode) {
-                target_addr += (_sram_bank * ROM_BANK_SIZE);
+                target_addr += (_sram_bank * ROM_SIZE);
             }
             break;
         }
@@ -117,8 +138,52 @@ uint8_t Cartridge::read_address(uint16_t address) {
             // Only lower 4 bits are usable
             return _sram[target_addr] & 0xF;
         }
+        case MBC::MBC3: {
+            if (_sram_bank <= 0x03) {
+                // SRAM
+                target_addr += (_sram_bank * ROM_SIZE);
+            } else {
+                if (_rtc_latched) {
+                    // Latched
+                    return _latched_rtc_value;
+                } else {
+                    // Realtime
+                    time_t now = time(0);
+                    tm* local_now = localtime(&now);
+                    switch (_sram_bank) {
+                    case 0x08: {
+                        // Seconds (0-59)
+                        return local_now->tm_sec;
+                    }
+                    case 0x09: {
+                        // Minutes (0-59)
+                        return local_now->tm_min;
+                    }
+                    case 0x0A: {
+                        // Hours (0-23)
+                        return local_now->tm_hour;
+                    }
+                    case 0x0B: {
+                        // Days (lower)
+                        return local_now->tm_yday;
+                    }
+                    case 0x0C: {
+                        // Days (upper bit) + control
+                        return (local_now->tm_yday >> 8) & 1;
+                    }
+                    default: {
+                        return 0xFF;
+                    }
+                    }
+                }
+            }
+            break;
+        }
         }
 
+        if (target_addr >= _sram.size()) {
+            return 0xFF;
+        }
         return _sram[target_addr];
     }
 }
@@ -148,15 +213,15 @@ void Cartridge::write_address(uint16_t address, uint8_t value) {
             // Banking mode select
             _banking_mode = (value & 1);
 
-        } else if (address >= SRAM_BANK && address < SRAM_BANK + SRAM_BANK_SIZE) {
+        } else if (address >= SRAM_START && address < (SRAM_START + SRAM_SIZE)) {
             // SRAM
             if (!_sram_enabled) {
                 break;
             }
 
-            address -= SRAM_BANK;
+            address -= SRAM_START;
             if (_banking_mode) {
-                address += (_sram_bank * ROM_BANK_SIZE);
+                address += (_sram_bank * ROM_SIZE);
             }
 
             if (address >= _sram.size()) {
@@ -177,17 +242,119 @@ void Cartridge::write_address(uint16_t address, uint8_t value) {
                 _sram_enabled = (value == 0x0A);
             }
 
-        } else if (address >= SRAM_BANK && address < SRAM_BANK + SRAM_BANK_SIZE) {
+        } else if (address >= SRAM_START && address < (SRAM_START + SRAM_SIZE)) {
             // SRAM
             if (!_sram_enabled) {
                 break;
             }
 
-            address -= SRAM_BANK;
+            address -= SRAM_START;
             if (address >= _sram.size()) {
                 break;
             }
             _sram[address] = value & 0xF;
+        }
+        break;
+    }
+    case MBC::MBC3: {
+        if (address <= 0x1FFF) {
+            // RAM + RTC enable
+            _sram_enabled = (value & 0xF) == 0xA;
+
+        } else if (address <= 0x3FFF) {
+            // ROM Bank number selection
+            _rom_bank = value;
+
+        } else if (address <= 0x5FFF) {
+            // RAM Bank + RTC selection
+            _sram_bank = value;
+
+        } else if (address <= 0x7FFF) {
+            // Latch Clock Data
+            if (value == 0) {
+                _rtc_latched = false;
+            } else {
+                time_t now = time(0);
+                tm* local_now = localtime(&now);
+                switch (_sram_bank) {
+                case 0x08: {
+                    // Seconds (0-59)
+                    _latched_rtc_value = local_now->tm_sec;
+                    break;
+                }
+                case 0x09: {
+                    // Minutes (0-59)
+                    _latched_rtc_value = local_now->tm_sec;
+                    break;
+                }
+                case 0x0A: {
+                    // Hours (0-23)
+                    _latched_rtc_value = local_now->tm_hour;
+                    break;
+                }
+                case 0x0B: {
+                    // Days (lower)
+                    _latched_rtc_value = local_now->tm_yday;
+                    break;
+                }
+                case 0x0C: {
+                    // Days (upper bit) + control
+                    _latched_rtc_value = (local_now->tm_yday >> 8) & 1;
+                    break;
+                }
+                default: {
+                    // Invalid
+                    _latched_rtc_value = 0xFF;
+                    break;
+                }
+                }
+                _rtc_latched = true;
+            }
+        } else if (address >= SRAM_START && address < (SRAM_START + SRAM_SIZE)) {
+            // SRAM
+            if (!_sram_enabled) {
+                break;
+            }
+
+            if (_sram_bank <= 0x03) {
+                // SRAM
+                address -= SRAM_START;
+                address += (_sram_bank * ROM_SIZE);
+                if (address >= _sram.size()) {
+                    break;
+                }
+                _sram[address] = value;
+                break;
+            } else {
+                time_t now = time(0);
+                tm* local_now = localtime(&now);
+                switch (_sram_bank) {
+                case 0x08: {
+                    // Seconds (0-59)
+                    break;
+                }
+                case 0x09: {
+                    // Minutes (0-59)
+                    break;
+                }
+                case 0x0A: {
+                    // Hours (0-23)
+                    break;
+                }
+                case 0x0B: {
+                    // Days (lower)
+                    break;
+                }
+                case 0x0C: {
+                    // Days (upper bit) + control
+                    break;
+                }
+                default: {
+                    // Invalid
+                    break;
+                }
+                }
+            }
         }
         break;
     }

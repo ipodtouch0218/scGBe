@@ -37,8 +37,8 @@ class Timer : GBComponent {
 
     void tick();
 
-    uint8_t get_register(uint16_t address);
-    void set_register(uint16_t address, uint8_t value);
+    uint8_t write_io_register(uint16_t address);
+    void write_io_register(uint16_t address, uint8_t value);
 
     uint8_t div() const {
         return _div >> 8;

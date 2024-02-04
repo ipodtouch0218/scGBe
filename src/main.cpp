@@ -115,7 +115,7 @@ class GBSoundStream : public sf::SoundStream {
             std::copy_n(filled_audio_buffer.begin(), 532 * 2, playing_audio_buffer.begin());
             filled_audio_buffer.erase(filled_audio_buffer.begin(), filled_audio_buffer.begin() + 532 * 2);
         } else {
-            std::cerr << "[AUDIO] didnt have enough samples! (" << size << ")" << std::endl;
+            // std::cerr << "[AUDIO] didnt have enough samples! (" << size << ")" << std::endl;
         }
 
         mutex.unlock();

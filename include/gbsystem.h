@@ -14,9 +14,6 @@ constexpr uint16_t RST_VECTORS = 0x0000;
 constexpr uint16_t INTERRUPT_VECTORS = 0x0040;
 constexpr uint16_t DMA_DEST = 0xFE00;
 
-constexpr uint16_t IO_REGISTERS_START = 0xFF00;
-constexpr uint16_t IO_REGISTERS_END = 0xFF7F;
-
 class GBSystem {
 
     protected:
@@ -29,14 +26,15 @@ class GBSystem {
     Joypad _joypad = Joypad(*this);
     bool _cgb = false;
 
+    uint8_t _wram[WRAM_SIZE * WRAM_BANKS]; // Only 2 banks in DMG mode
+    uint8_t _hram[HRAM_SIZE];
+
     public:
     uint32_t clock_speed = 4194304;
     uint64_t cycles = 0;
     uint64_t frame_cycles = 0;
     uint8_t timer_cycles = 0;
     uint64_t frame_number = 0;
-
-    uint8_t address_space[0xFFFF];
 
     GBComponent* register_handlers[0x80];
 
@@ -45,8 +43,8 @@ class GBSystem {
     bool tick();
     void reset();
 
-    uint8_t read_address(uint16_t addr);
-    void write_address(uint16_t addr, uint8_t value);
+    uint8_t read_address(uint16_t addr, bool internal = false);
+    void write_address(uint16_t addr, uint8_t value, bool internal = false);
 
     void add_register_callbacks(GBComponent* component, std::initializer_list<uint16_t> addresses);
     void add_register_callbacks_range(GBComponent* component, uint16_t address_start, uint16_t address_end_exclusive);

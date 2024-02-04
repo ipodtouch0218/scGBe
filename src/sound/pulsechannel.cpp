@@ -87,7 +87,7 @@ void PulseChannel::trigger() {
     }
 }
 
-uint8_t PulseChannel::get_register(uint16_t address) {
+uint8_t PulseChannel::read_io_register(uint16_t address) {
     switch (address - _base_address) {
     case 0: { // NRx0: Frequency Sweep
         if (!_has_frequency_sweep) {
@@ -120,7 +120,7 @@ uint8_t PulseChannel::get_register(uint16_t address) {
     }
 }
 
-void PulseChannel::set_register(uint16_t address, uint8_t value) {
+void PulseChannel::write_io_register(uint16_t address, uint8_t value) {
     switch (address - _base_address) {
     case 0: { // NRx0: Frequency Sweep
         if (!_has_frequency_sweep) {

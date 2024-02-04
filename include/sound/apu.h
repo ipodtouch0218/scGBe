@@ -30,6 +30,7 @@ class APU : public GBComponent {
 
     int16_t current_sample(bool right_channel);
 
-    uint8_t get_register(uint16_t address);
-    void set_register(uint16_t address, uint8_t value);
+    uint8_t read_io_register(uint16_t address);
+    void write_io_register(uint16_t address, uint8_t value);
+
 };

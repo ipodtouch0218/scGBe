@@ -1,5 +1,6 @@
 #include "dmacontroller.h"
 #include "gbsystem.h"
+#include <iostream>
 
 DMAController::DMAController(GBSystem& gb) :
     GBComponent::GBComponent(gb)
@@ -12,12 +13,12 @@ void DMAController::tick() {
         uint16_t source_addr = _source_addr_msb | _counter;
         uint16_t dest_addr = 0xFE00 | _counter;
 
-        gb.address_space[dest_addr] = gb.address_space[source_addr];
+        gb.write_address(dest_addr, gb.read_address(source_addr, true), true);
         _counter++;
     }
 }
 
-uint8_t DMAController::get_register(uint16_t address) {
+uint8_t DMAController::read_io_register(uint16_t address) {
     switch (address) {
     case DMA: {
         // Source: https://gekkio.fi/files/gb-docs/gbctr.pdf
@@ -27,7 +28,7 @@ uint8_t DMAController::get_register(uint16_t address) {
     }
 }
 
-void DMAController::set_register(uint16_t address, uint8_t value) {
+void DMAController::write_io_register(uint16_t address, uint8_t value) {
     switch (address) {
     case DMA: {
         // if (_counter < 160) {

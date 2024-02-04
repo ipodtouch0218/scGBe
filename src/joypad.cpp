@@ -26,14 +26,14 @@ void Joypad::tick() {
     }
 }
 
-uint8_t Joypad::get_register(uint16_t address) {
-    if (address != JOYP) {
-        return 0xFF;
+uint8_t Joypad::read_io_register(uint16_t address) {
+    switch (address) {
+    case JOYP: return _current_register;
+    default: return 0xFF;
     }
-    return _current_register;
 }
 
-void Joypad::set_register(uint16_t address, uint8_t value) {
+void Joypad::write_io_register(uint16_t address, uint8_t value) {
     if (address != JOYP) {
         return;
     }

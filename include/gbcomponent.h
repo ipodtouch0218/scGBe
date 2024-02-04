@@ -16,6 +16,6 @@ class GBComponent {
 
     virtual void tick() = 0;
 
-    virtual uint8_t get_register(uint16_t address) { return 0xFF; }
-    virtual void set_register(uint16_t address, uint8_t value) {}
+    virtual uint8_t read_io_register(uint16_t address) { return 0xFF; }
+    virtual void write_io_register(uint16_t address, uint8_t value) {}
 };

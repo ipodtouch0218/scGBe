@@ -1,9 +1,10 @@
 #include "gbsystem.h"
-
-#include <iostream>
 #include <cstring>
+#include <iostream>
+#include <iomanip>
 #include "registers.h"
 #include "gbcomponent.h"
+#include "memorymap.h"
 
 GBSystem::GBSystem(bool cgb) :
     _cgb(cgb)
@@ -18,8 +19,6 @@ void GBSystem::reset() {
     timer_cycles = 0;
 
     cpu().reset();
-    // memset(address_space + 0x8000, 0, 0xA000-0x8000); // Clear VRAM
-    memset(address_space + 0x8000, 0, 0xFFFF-0x8000); // Clear RAM
 }
 
 bool GBSystem::tick() {
@@ -43,7 +42,7 @@ bool GBSystem::tick() {
 
     frame_cycles++;
     cycles++;
-    if (frame_cycles == 70224) {
+    if (frame_cycles == (int) (clock_speed / 59.7275)) {
         frame_number++;
         frame_cycles = 0;
         return true;
@@ -51,105 +50,120 @@ bool GBSystem::tick() {
     return false;
 }
 
-uint8_t GBSystem::read_address(uint16_t addr) {
+uint8_t GBSystem::read_address(uint16_t address, bool internal) {
 
-    if (addr >= IO_REGISTERS_START && addr <= IO_REGISTERS_END) {
+    if (address >= IO_REGISTERS_START && address < (IO_REGISTERS_START + IO_REGISTERS_SIZE)) {
         // IO Registers
-        GBComponent* handling_component = register_handlers[addr - IO_REGISTERS_START];
+        GBComponent* handling_component = register_handlers[address - IO_REGISTERS_START];
         if (handling_component) {
-            return handling_component->get_register(addr);
+            return handling_component->read_io_register(address);
         }
-    }
-
-    if (dma().active() && addr < 0xFF80) {
-        // Cannot access non-HRAM during DMA
-        std::cerr << "READ FROM NON-HRAM WHILE DMA IS ACTIVE!" << std::endl;
         return 0xFF;
     }
 
-    if (addr >= 0x0000 && addr <= 0x7FFF) {
-        // ROM
-        return cartridge().read_address(addr);
+    if (address >= HRAM_START && address < (HRAM_START + HRAM_SIZE)) {
+        // HRAM
+        return _hram[address - HRAM_START];
     }
 
-    if (addr >= 0xE000 && addr <= 0xFDFF) {
-        // Echo RAM
-        addr -= 0x2000;
+    if (!internal && dma().active()) {
+        // Cannot access non-HRAM during DMA
+        return 0xFF;
     }
 
-    if (ppu().enabled()) {
-        // Cannot access vram during rendering mode 3
-        if (addr >= 0x8000 && addr <= 0x9FFF && ppu().mode() == LCDDrawMode::Drawing) {
-            std::cerr << "READ FROM VRAM WHILE PPU IS DRAWING!" << std::endl;
-            return 0xFF;
+    if ((address >= ROM_START && address < (ROM_START + (ROM_SIZE * 2))) || (address >= SRAM_START && address < (SRAM_START + SRAM_SIZE))) {
+        // ROM / SRAM
+        return cartridge().read_address(address);
+    }
+
+    if (address >= ERAM_START && address < (ERAM_START + ERAM_SIZE)) {
+        // ERAM
+        address -= 0x2000;
+    }
+
+    if (address >= WRAM_BANK0_START && address < (WRAM_BANK0_START + (WRAM_SIZE * 2))) {
+        // WRAM
+        if (cgb_mode()) {
+            // TODO: second bank
+            address -= WRAM_BANK0_START;
+        } else {
+            address -= WRAM_BANK0_START;
         }
-        // Cannot access OAM during rendering modes 2 / 3
-        if (addr >= 0xFE00 && addr <= 0xFE9F && (ppu().mode() == LCDDrawMode::Drawing || ppu().mode() == LCDDrawMode::OAM_Scan)) {
-            std::cerr << "READ FROM OAM WHILE PPU IS DRAWING/SCANNING!" << std::endl;
-            return 0xFF;
-        }
+        return _wram[address];
     }
 
-    return address_space[addr];
+    if ((address >= VRAM_START && address < (VRAM_START + VRAM_SIZE)) || (address >= OAM_START && address < (OAM_START + OAM_SIZE))) {
+        // VRAM / OAM
+        return ppu().read_address(address, internal);
+    }
+
+    return 0xFF;
 }
 
-void GBSystem::write_address(uint16_t addr, uint8_t value) {
+void GBSystem::write_address(uint16_t address, uint8_t value, bool internal) {
 
-    if (addr >= IO_REGISTERS_START && addr <= IO_REGISTERS_END) {
+    if (address >= IO_REGISTERS_START && address < (IO_REGISTERS_START + IO_REGISTERS_SIZE)) {
         // IO Registers
-        GBComponent* handling_component = register_handlers[addr - IO_REGISTERS_START];
+        GBComponent* handling_component = register_handlers[address - IO_REGISTERS_START];
         if (handling_component) {
-            handling_component->set_register(addr, value);
-            return;
+            handling_component->write_io_register(address, value);
         }
+        return;
     }
 
-    if (dma().active() && addr < 0xFF80) {
+    if (address >= HRAM_START && address < (HRAM_START + HRAM_SIZE)) {
+        // HRAM
+        _hram[address - HRAM_START] = value;
+        return;
+    }
+
+    if (!internal && dma().active()) {
         // Cannot access non-HRAM during DMA
-        std::cerr << "WRITE TO NON-HRAM WHILE DMA IS ACTIVE!" << std::endl;
         return;
     }
 
-    if (addr >= 0x0000 && addr <= 0x7FFF) {
-        // ROM
-        cartridge().write_address(addr, value);
+    if ((address >= ROM_START && address < (ROM_START + (ROM_SIZE * 2))) || (address >= SRAM_START && address < (SRAM_START + SRAM_SIZE))) {
+        // ROM / SRAM
+        cartridge().write_address(address, value);
         return;
     }
 
-    if (ppu().enabled()) {
-        // Cannot access vram during rendering mode 3
-        if (addr >= 0x8000 && addr <= 0x9FFF && ppu().mode() == LCDDrawMode::Drawing) {
-            std::cerr << "WRITE TO VRAM WHILE PPU IS DRAWING!" << std::endl;
-            return;
-        }
-        // Cannot access OAM during rendering modes 2 / 3
-        if (addr >= 0xFE00 && addr <= 0xFE9F && (ppu().mode() == LCDDrawMode::Drawing || ppu().mode() == LCDDrawMode::OAM_Scan)) {
-            std::cerr << "WRITE TO OAM WHILE PPU IS DRAWING/SCANNING!" << std::endl;
-            return;
-        }
+    if (address >= ERAM_START && address < (ERAM_START + ERAM_SIZE)) {
+        // ERAM
+        address -= 0x2000;
     }
 
-    if (addr >= 0xE000 && addr <= 0xFDFF) {
-        // Echo RAM
-        addr -= 0x2000;
+    if (address >= WRAM_BANK0_START && address < (WRAM_BANK0_START + (WRAM_SIZE * 2))) {
+        // WRAM
+        if (cgb_mode()) {
+            // TODO: second bank
+            address -= WRAM_BANK0_START;
+        } else {
+            address -= WRAM_BANK0_START;
+        }
+        _wram[address] = value;
+        return;
     }
 
-    address_space[addr] = value;
+    if ((address >= VRAM_START && address < (VRAM_START + VRAM_SIZE)) || (address >= OAM_START && address < (OAM_START + OAM_SIZE))) {
+        // VRAM / OAM
+        return ppu().write_address(address, value, internal);
+    }
 }
 
 
 void GBSystem::add_register_callbacks(GBComponent* component, std::initializer_list<uint16_t> addresses) {
-    for (uint16_t addr : addresses) {
-        register_handlers[addr - IO_REGISTERS_START] = component;
+    for (uint16_t address : addresses) {
+        register_handlers[address - IO_REGISTERS_START] = component;
     }
 }
 
 void GBSystem::add_register_callbacks_range(GBComponent* component, uint16_t address_start, uint16_t address_end_exclusive) {
-    for (uint16_t addr = address_start; addr < address_end_exclusive; addr++) {
-        register_handlers[addr - IO_REGISTERS_START] = component;
+    for (uint16_t address = address_start; address < address_end_exclusive; address++) {
+        register_handlers[address - IO_REGISTERS_START] = component;
     }
 }
 
 void GBSystem::request_interrupt(Interrupts::Interrupts interrupt) {
-    address_space[IF] |= (uint8_t) interrupt;
+    write_address(IF, read_address(IF, true) | (uint8_t) interrupt, true);
 }

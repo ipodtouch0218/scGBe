@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <vector>
 #include "gbcomponent.h"
+#include "memorymap.h"
 #include "utils.h"
 
 constexpr uint8_t SCREEN_W = 160;
@@ -24,9 +25,6 @@ constexpr uint16_t TILE_BLOCK2_ADDR = 0x9000;
 
 constexpr uint16_t TILEMAP0_ADDR = 0x9800;
 constexpr uint16_t TILEMAP1_ADDR = 0x9C00;
-
-constexpr uint16_t OAM_ADDR = 0xFE00;
-constexpr uint8_t OAM_SIZE = 40;
 
 class GBSystem;
 
@@ -111,6 +109,10 @@ class PPU : public GBComponent {
     uint8_t _last_drawn_sprite_tile_x = -1;
     bool _was_disabled = false;
 
+    // VRAM
+    uint8_t _vram[VRAM_SIZE * VRAM_BANKS]; // Only 1 bank in DMG mode
+    uint8_t _oam[OAM_SIZE];
+
     public:
     uint8_t framebuffer[SCREEN_W * SCREEN_H * 4];
 
@@ -118,8 +120,11 @@ class PPU : public GBComponent {
 
     void tick();
 
-    uint8_t get_register(uint16_t address);
-    void set_register(uint16_t address, uint8_t value);
+    uint8_t read_address(uint16_t address, bool internal = false);
+    void write_address(uint16_t address, uint8_t value, bool internal = false);
+
+    uint8_t read_io_register(uint16_t address);
+    void write_io_register(uint16_t address, uint8_t value);
 
     bool enabled() const {
         return _enabled;
@@ -130,5 +135,5 @@ class PPU : public GBComponent {
     }
 
     protected:
-    uint8_t get_pixel_of_tile(uint16_t tile_addr, uint8_t x, uint8_t y) const;
+    uint8_t get_pixel_of_tile(uint16_t tile_addr, uint8_t x, uint8_t y) ;
 };

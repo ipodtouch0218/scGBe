@@ -48,7 +48,7 @@ int16_t NoiseChannel::current_sample() {
     return (int16_t) (sample * 32768 / 2);
 }
 
-uint8_t NoiseChannel::get_register(uint16_t address) {
+uint8_t NoiseChannel::read_io_register(uint16_t address) {
     switch (address - _base_address) {
     case 0: { // NRx0: Unused
         return 0xFF;
@@ -77,7 +77,7 @@ uint8_t NoiseChannel::get_register(uint16_t address) {
     }
 }
 
-void NoiseChannel::set_register(uint16_t address, uint8_t value) {
+void NoiseChannel::write_io_register(uint16_t address, uint8_t value) {
     switch (address - _base_address) {
     case 0: { // NRx0: Unused
         break;

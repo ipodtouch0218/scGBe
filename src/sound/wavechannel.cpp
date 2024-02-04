@@ -63,7 +63,7 @@ void WaveChannel::trigger() {
     _wave_index = 0;
 }
 
-uint8_t WaveChannel::get_register(uint16_t address) {
+uint8_t WaveChannel::read_io_register(uint16_t address) {
     if (address >= SND_WV_TABLE && address < SND_WV_TABLE + 16) {
         uint8_t index = (address - SND_WV_TABLE) * 2;
         return ((_wave_samples[index] & 0xF) << 4) | (_wave_samples[index + 1] & 0xF);
@@ -96,7 +96,7 @@ uint8_t WaveChannel::get_register(uint16_t address) {
     }
 }
 
-void WaveChannel::set_register(uint16_t address, uint8_t value) {
+void WaveChannel::write_io_register(uint16_t address, uint8_t value) {
     if (address >= SND_WV_TABLE && address < SND_WV_TABLE + 16) {
         uint8_t index = (address - SND_WV_TABLE) * 2;
         _wave_samples[index] = (value >> 4) & 0xF;

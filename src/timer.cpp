@@ -30,7 +30,7 @@ void Timer::tick() {
     }
 }
 
-uint8_t Timer::get_register(uint16_t address) {
+uint8_t Timer::write_io_register(uint16_t address) {
     switch (address) {
     case DIV: return div();
     case TIMA: return _tima;
@@ -40,7 +40,7 @@ uint8_t Timer::get_register(uint16_t address) {
     }
 }
 
-void Timer::set_register(uint16_t address, uint8_t value) {
+void Timer::write_io_register(uint16_t address, uint8_t value) {
     switch (address) {
     case DIV: {
         _div = 0;
