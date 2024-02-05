@@ -78,6 +78,7 @@ class PPU : public GBComponent {
     // STAT
     bool _compare_scanline_interrupt_select = false;
     bool _mode_interrupt_select[3] = {false, false, false};
+    bool _stat_blocking = false;
     // LCDC
     bool _enabled = true;
     bool _window_tilemap_high = false;
@@ -106,6 +107,8 @@ class PPU : public GBComponent {
     uint8_t _draw_pixel_x = 0;
 
     std::vector<OAMEntry*> _scanline_sprite_buffer;
+    bool _scanline_sprite_penalties[MAX_SPRITES_PER_SCANLINE];
+    bool _window_penalty = false;
     uint8_t _last_drawn_sprite_tile_x = -1;
     bool _was_disabled = false;
 

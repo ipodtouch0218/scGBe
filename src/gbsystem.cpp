@@ -35,6 +35,9 @@ bool GBSystem::tick() {
     // DMA
     dma().tick();
 
+    // Joypad
+    joypad().tick();
+
     // 4 clock cycles = 1 CPU cycle
     if (cycles % 4 == 0) {
         cpu().tick();
@@ -66,9 +69,11 @@ uint8_t GBSystem::read_address(uint16_t address, bool internal) {
         return _hram[address - HRAM_START];
     }
 
+    // TODO: ROM is readable on GBC, apparently.
     if (!internal && dma().active()) {
         // Cannot access non-HRAM during DMA
-        return 0xFF;
+        // Return what the DMA is reading...
+        return read_address(dma().current_address(), true);
     }
 
     if ((address >= ROM_START && address < (ROM_START + (ROM_SIZE * 2))) || (address >= SRAM_START && address < (SRAM_START + SRAM_SIZE))) {

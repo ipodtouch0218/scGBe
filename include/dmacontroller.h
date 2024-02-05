@@ -18,4 +18,8 @@ class DMAController : public GBComponent {
     bool active() const {
         return _counter < 160;
     }
+
+    uint16_t current_address() const {
+        return _source_addr_msb | _counter;
+    }
 };

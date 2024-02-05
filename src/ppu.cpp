@@ -74,12 +74,17 @@ void PPU::tick() {
 
             }
 
+            for (size_t i = 0; i < MAX_SPRITES_PER_SCANLINE; i++) {
+                _scanline_sprite_penalties[i] = false;
+            }
+
             _mode = LCDDrawMode::Drawing;
         }
     }
 
     if (_mode == LCDDrawMode::Drawing) {
         // Out here, used for determining the obj penalties
+        // BG
         uint8_t target_pixel_in_bg_x = _draw_pixel_x + _bg_scroll_x;
         uint8_t target_pixel_in_bg_y = _current_scanline + _bg_scroll_y;
 
@@ -88,37 +93,60 @@ void PPU::tick() {
         uint8_t draw_pixel_of_bg_tile_x = target_pixel_in_bg_x % 8;
         uint8_t draw_pixel_of_bg_tile_y = target_pixel_in_bg_y % 8;
 
+        // WINDOW
+        bool in_window = _window_enabled && _current_scanline >= _window_scroll_y && (_draw_pixel_x + 7) >= _window_scroll_x;
+        uint8_t target_pixel_in_window_x = _draw_pixel_x + 7 - _window_scroll_x;
+        uint8_t target_pixel_in_window_y = _current_scanline - _window_scroll_y;
+
+        uint8_t window_tilemap_x = target_pixel_in_window_x / 8;
+        uint8_t window_tilemap_y = target_pixel_in_window_y / 8;
+        uint8_t draw_pixel_of_window_tile_x = target_pixel_in_window_x % 8;
+        uint8_t draw_pixel_of_window_tile_y = target_pixel_in_window_y % 8;
+
         if (_dots == OAM_SCAN_DOTS) {
             _penalty_dots = 12; // 12 wasted cycles at the beginning
             _penalty_dots += (_bg_scroll_x % 8); // Discarding pixels in leftmost tile
         }
 
+        // if statement only runs in DMG mode.
         std::vector<OAMEntry*> sprites_to_draw;
-        for (OAMEntry* entry : _scanline_sprite_buffer) {
-            uint8_t x_diff = (_draw_pixel_x + 8) - entry->x_position;
-            if (x_diff >= 8 && x_diff != -1) {
-                continue;
-            }
-            // Draw this sprite!
+        if (_obj_enabled && !gb.cgb_mode()) {
+            for (size_t i = 0; i < _scanline_sprite_buffer.size(); i++) {
+                OAMEntry* entry = _scanline_sprite_buffer[i];
+                uint8_t x_diff = (_draw_pixel_x + 8) - entry->x_position;
 
-            if (x_diff == -1) {
-                // 6 dot penalty for retrieving the tile...
-                _penalty_dots += 6;
+                if (!_scanline_sprite_penalties[i] && x_diff == 0) {
+                    // 6 dot penalty for retrieving the tile...
+                    _penalty_dots += 6;
 
-                // And additional penalties for the first sprite in the tile
-                if (bg_tilemap_x != _last_drawn_sprite_tile_x) {
-                    uint8_t remaining_tile_pixels = (8 - draw_pixel_of_bg_tile_x);
-                    int8_t additional_penalty = remaining_tile_pixels - 2;
-                    if (additional_penalty > 0) {
-                        _penalty_dots += additional_penalty;
+                    // And additional penalties for the first sprite in the tile
+                    uint8_t pixel_x_to_check = in_window ? draw_pixel_of_window_tile_x : draw_pixel_of_bg_tile_x;
+                    uint8_t tile_x_to_check = in_window ? window_tilemap_x : bg_tilemap_x;
+                    if (tile_x_to_check != _last_drawn_sprite_tile_x) {
+                        uint8_t remaining_tile_pixels = (7 - pixel_x_to_check);
+                        int8_t additional_penalty = remaining_tile_pixels - 2;
+                        if (additional_penalty > 0) {
+                            _penalty_dots += additional_penalty;
+                        }
+                        _last_drawn_sprite_tile_x = tile_x_to_check;
                     }
-                    _last_drawn_sprite_tile_x = bg_tilemap_x;
+                    _scanline_sprite_penalties[i] = true;
                 }
-            }
 
-            sprites_to_draw.push_back(entry);
+                if (x_diff >= 8) {
+                    continue;
+                }
+
+                // Draw this sprite!
+                sprites_to_draw.push_back(entry);
+            }
         }
 
+        // Window penalty: 6 dots when enabling
+        if (!_window_penalty && in_window) {
+            _penalty_dots += 6;
+            _window_penalty = true;
+        }
 
         if (_penalty_dots) {
             // Don't draw right now, in a penalty
@@ -165,16 +193,8 @@ void PPU::tick() {
             }
 
             // TODO: window bugs (scx==0, stuff like that.)
-            if (_window_enabled && _current_scanline >= _window_scroll_y && (_draw_pixel_x + 7) >= _window_scroll_x) {
+            if (in_window) {
                 // Window:
-                uint8_t target_pixel_in_window_x = _draw_pixel_x + 7 - _window_scroll_x;
-                uint8_t target_pixel_in_window_y = _current_scanline - _window_scroll_y;
-
-                uint8_t window_tilemap_x = target_pixel_in_window_x / 8;
-                uint8_t window_tilemap_y = target_pixel_in_window_y / 8;
-                uint8_t draw_pixel_of_window_tile_x = target_pixel_in_window_x % 8;
-                uint8_t draw_pixel_of_window_tile_y = target_pixel_in_window_y % 8;
-
                 uint16_t window_tilemap_addr = _window_tilemap_high ? TILEMAP1_ADDR : TILEMAP0_ADDR;
                 uint8_t window_tile_index = read_address(window_tilemap_addr + window_tilemap_x + (window_tilemap_y * 32), true);
 
@@ -224,6 +244,7 @@ void PPU::tick() {
                 // Done drawing
                 _mode = LCDDrawMode::HBlank;
                 _last_drawn_sprite_tile_x = -1;
+                _window_penalty = false;
             }
         }
     }
@@ -252,14 +273,11 @@ void PPU::tick() {
     }
 
     // Interrupts
-    if (_draw_pixel_x == 0 && _compare_scanline_interrupt_select && (_current_scanline == _compare_scanline)) {
-        // LYC interrupt
-        gb.request_interrupt(Interrupts::Stat);
-
-    } else if (previous_draw_mode != _mode && _mode <= 2 && _mode_interrupt_select[_mode]) {
-        // Mode change interrupts
+    bool trigger_interrupt = (_compare_scanline_interrupt_select && (_current_scanline == _compare_scanline)) || (previous_draw_mode != _mode && _mode <= 2 && _mode_interrupt_select[_mode]);
+    if (trigger_interrupt && !_stat_blocking) {
         gb.request_interrupt(Interrupts::Stat);
     }
+    _stat_blocking = trigger_interrupt;
 }
 
 uint8_t PPU::get_pixel_of_tile(uint16_t tile_addr, uint8_t x, uint8_t y) {
@@ -333,7 +351,7 @@ uint8_t PPU::read_io_register(uint16_t address) {
     case LY: return _current_scanline;
     case LYC: return _compare_scanline;
     case STAT: {
-        uint8_t result = 0;
+        uint8_t result = 0b10000000;
         result |= ((uint8_t) _mode) & 0b11;
         result = utils::set_bit_value(result, 2, _current_scanline == _compare_scanline);
         result = utils::set_bit_value(result, 3, _mode_interrupt_select[0]);
@@ -399,6 +417,14 @@ void PPU::write_io_register(uint16_t address, uint8_t value) {
         break;
     }
     case STAT: {
+        if (!gb.cgb_mode()) {
+            // Check for interrupts, as if all were enabled.
+            bool trigger_interrupt = (_current_scanline == _compare_scanline) || (_mode <= 2);
+            if (trigger_interrupt && !_stat_blocking) {
+                gb.request_interrupt(Interrupts::Stat);
+            }
+            _stat_blocking = trigger_interrupt;
+        }
         _mode_interrupt_select[0] = utils::get_bit_value(value, 3);
         _mode_interrupt_select[1] = utils::get_bit_value(value, 4);
         _mode_interrupt_select[2] = utils::get_bit_value(value, 5);

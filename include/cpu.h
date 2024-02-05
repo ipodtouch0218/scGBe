@@ -102,11 +102,11 @@ class CPU : public GBComponent {
     private:
     uint8_t _interrupt_flags = 0;
     bool _ime_flag = false;
+    bool _ime_enable_next_cycle = false;
     bool _halted = false;
 
     public:
     Registers registers;
-    bool ime_enable_next_cycle = false;
     bool halt_bug = false;
 
     uint8_t wait_ticks = 0;

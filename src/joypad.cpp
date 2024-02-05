@@ -13,22 +13,12 @@ Joypad::Joypad(GBSystem& gb) :
 }
 
 void Joypad::tick() {
-    uint8_t new_buttons = 0xF;
-    if (_selected_buttons) {
-        new_buttons = (inputs >> 4) & 0xF;
-    } else if (_selected_dpad) {
-        new_buttons = inputs & 0xF;
-    }
-
-    if ((_current_register & 0xF) > new_buttons) {
-        // Interrupt!
-        gb.request_interrupt(Interrupts::Joypad);
-    }
+    update_joypad();
 }
 
 uint8_t Joypad::read_io_register(uint16_t address) {
     switch (address) {
-    case JOYP: return _current_register;
+    case JOYP: return 0b11000000 | _current_register;
     default: return 0xFF;
     }
 }
@@ -39,22 +29,31 @@ void Joypad::write_io_register(uint16_t address, uint8_t value) {
     }
 
     _current_register = (value & 0xF0) | 0xF;
-    _selected_buttons = false;
-    _selected_dpad = false;
+    _selected_dpad = utils::get_bit_value(_current_register, 4) == 0;
+    _selected_buttons = utils::get_bit_value(_current_register, 5) == 0;
 
-    bool dpad_enabled = utils::get_bit_value(_current_register, 4) == 0;
-    bool buttons_enabled = utils::get_bit_value(_current_register, 5) == 0;
+    update_joypad();
+}
 
-    if (dpad_enabled == buttons_enabled) {
-        return;
+void Joypad::update_joypad() {
+    uint8_t old_register = _current_register;
+
+    _current_register |= 0x0F;
+    if (_selected_dpad) {
+        _current_register &= inputs & 0xF;
+    }
+    if (_selected_buttons) {
+        _current_register &= (inputs >> 4) & 0xF;
     }
 
-    _current_register &= 0xF0;
-    if (dpad_enabled) {
-        _current_register |= inputs & 0xF;
-        _selected_dpad = true;
-    } else if (buttons_enabled) {
-        _current_register |= (inputs >> 4) & 0xF;
-        _selected_buttons = true;
+    bool any_button_pressed = false;
+    any_button_pressed |= (utils::get_bit_value(old_register, 0) - utils::get_bit_value(_current_register, 0)) == 1;
+    any_button_pressed |= (utils::get_bit_value(old_register, 1) - utils::get_bit_value(_current_register, 1)) == 1;
+    any_button_pressed |= (utils::get_bit_value(old_register, 2) - utils::get_bit_value(_current_register, 2)) == 1;
+    any_button_pressed |= (utils::get_bit_value(old_register, 3) - utils::get_bit_value(_current_register, 3)) == 1;
+
+    if (any_button_pressed) {
+        // Interrupt!
+        gb.request_interrupt(Interrupts::Joypad);
     }
 }

@@ -55,18 +55,15 @@ int16_t APU::current_sample(bool right_channel) {
 }
 
 uint8_t APU::read_io_register(uint16_t address) {
-    if (address != NR52 && !_enabled) {
-        return 0xFF;
-    }
 
     if (address >= SND_P1_ORIGIN && address < SND_P1_ORIGIN + 5) {
         return pulse_channel_1.read_io_register(address);
     } else if (address >= SND_P2_ORIGIN && address < SND_P2_ORIGIN + 5) {
         return pulse_channel_2.read_io_register(address);
     } else if ((address >= SND_WV_ORIGIN && address < SND_WV_ORIGIN + 5) || (address >= SND_WV_TABLE && address < SND_WV_TABLE + 16)) {
-        wave_channel_3.read_io_register(address);
+        return wave_channel_3.read_io_register(address);
     } else if (address >= SND_NS_ORIGIN && address < SND_NS_ORIGIN + 5) {
-        noise_channel_4.read_io_register(address);
+        return noise_channel_4.read_io_register(address);
     }
 
     switch (address) {
@@ -97,22 +94,6 @@ uint8_t APU::read_io_register(uint16_t address) {
         value = utils::set_bit_value(value, 2, wave_channel_3.active());
         value = utils::set_bit_value(value, 3, noise_channel_4.active());
         value = utils::set_bit_value(value, 7, _enabled);
-
-        if (!_enabled) {
-            pulse_channel_1.clear_registers();
-            pulse_channel_2.clear_registers();
-            wave_channel_3.clear_registers();
-            noise_channel_4.clear_registers();
-            for (int i = 0; i < 2; i++) {
-                for (int j = 0; j < 4; j++) {
-                    _channel_panning[i][j] = true;
-                }
-            }
-            _right_volume = 0b111;
-            _vin_right = true;
-            _left_volume = 0b111;
-            _vin_left = true;
-        }
         return value;
     }
     }
@@ -121,8 +102,11 @@ uint8_t APU::read_io_register(uint16_t address) {
 }
 
 void APU::write_io_register(uint16_t address, uint8_t value) {
-    if (address != NR52 && !_enabled) {
-        return;
+    if (!(address >= SND_WV_TABLE && address < SND_WV_TABLE + 16)) {
+        bool length_timer = address == SND_P1_LEN_DUTY || address == SND_P2_LEN_DUTY || address == SND_WV_LEN || address == SND_NS_LEN;
+        if ((gb.cgb_mode() || !length_timer) && address != NR52 && !_enabled) {
+            return;
+        }
     }
 
     if (address >= SND_P1_ORIGIN && address < SND_P1_ORIGIN + 5) {
@@ -157,6 +141,22 @@ void APU::write_io_register(uint16_t address, uint8_t value) {
     }
     case NR52: {
         _enabled = utils::get_bit_value(value, 7);
+
+        if (!_enabled) {
+            pulse_channel_1.clear_registers();
+            pulse_channel_2.clear_registers();
+            wave_channel_3.clear_registers();
+            noise_channel_4.clear_registers();
+            for (int i = 0; i < 2; i++) {
+                for (int j = 0; j < 4; j++) {
+                    _channel_panning[i][j] = false;
+                }
+            }
+            _right_volume = 0;
+            _vin_right = false;
+            _left_volume = 0;
+            _vin_left = false;
+        }
         break;
     }
     }

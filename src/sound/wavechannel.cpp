@@ -18,10 +18,12 @@ void WaveChannel::tick() {
         return;
     }
 
+    _wave_sample_read = false;
     if (_timer-- == 0) {
         _wave_index++;
         _wave_index %= 32;
         _current_wave_sample = _wave_samples[_wave_index];
+        _wave_sample_read = true;
         _timer = (2048 - _period) * 2;
     }
 }
@@ -65,8 +67,15 @@ void WaveChannel::trigger() {
 
 uint8_t WaveChannel::read_io_register(uint16_t address) {
     if (address >= SND_WV_TABLE && address < SND_WV_TABLE + 16) {
-        uint8_t index = (address - SND_WV_TABLE) * 2;
-        return ((_wave_samples[index] & 0xF) << 4) | (_wave_samples[index + 1] & 0xF);
+        // !_wave_sample_read = edge case, when the APU reads, that value is accessible.
+        if (_wave_sample_read && (_wave_index % 2 == 0)) {
+            return ((_wave_samples[_wave_index] & 0xF) << 4) | (_wave_samples[_wave_index + 1] & 0xF);
+        } else if (active()) {
+            return 0xFF;
+        } else {
+            uint8_t index = (address - SND_WV_TABLE) * 2;
+            return ((_wave_samples[index] & 0xF) << 4) | (_wave_samples[index + 1] & 0xF);
+        }
     }
 
     switch (address - _base_address) {
@@ -146,9 +155,14 @@ void WaveChannel::write_io_register(uint16_t address, uint8_t value) {
 }
 
 void WaveChannel::clear_registers() {
+    _dac_enabled = false;
+
     _length_timer = 255;
-    _initial_volume = 0b11;
-    _volume = 0b11;
-    _period = 0b11111111111;
-    _length_enable = true;
+
+    _volume = _initial_volume = 0;
+
+    _period = 0;
+    _length_enable = false;
+
+    _active = false;
 }

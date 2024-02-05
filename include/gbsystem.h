@@ -66,6 +66,10 @@ class GBSystem {
         return _timer;
     }
 
+    Joypad& joypad() {
+        return _joypad;
+    }
+
     DMAController& dma() {
         return _dma_controller;
     }

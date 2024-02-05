@@ -3,8 +3,8 @@
 
 class Joypad : public GBComponent {
 
-    protected:
-    uint8_t _current_register = false;
+    private:
+    uint8_t _current_register = 0xFF;
     bool _selected_dpad = false;
     bool _selected_buttons = false;
 
@@ -15,5 +15,8 @@ class Joypad : public GBComponent {
 
     uint8_t read_io_register(uint16_t address);
     void write_io_register(uint16_t address, uint8_t value);
+
+    private:
+    void update_joypad();
 
 };

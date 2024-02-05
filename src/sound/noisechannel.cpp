@@ -71,7 +71,7 @@ uint8_t NoiseChannel::read_io_register(uint16_t address) {
         return value;
     }
     case 4: { // NRx4: Length Enable
-        return utils::set_bit_value(0, 6, _length_enable);
+        return utils::set_bit_value(0xFF, 6, _length_enable);
     }
     default: return 0xFF;
     }
@@ -117,14 +117,19 @@ void NoiseChannel::write_io_register(uint16_t address, uint8_t value) {
 }
 
 void NoiseChannel::clear_registers() {
-    _length_timer = 63;
-    _volume_sweep_pace = 0b111;
-    _volume_sweep_timer = 0b111;
-    _volume_sweep_increments = true;
-    _initial_volume = 0b1111;
-    _volume = 0b1111;
-    _clock_divider = 0b111;
-    _7_bit_lsfr = true;
-    _clock_shift = 0b1111;
-    _length_enable = true;
+    _length_timer = 64;
+
+    _volume_sweep_pace = 0;
+    _volume_sweep_timer = 0;
+    _volume_sweep_increments = false;
+    _volume = _initial_volume = 0;
+    _dac_enabled = false;
+
+    _clock_divider = 0;
+    _7_bit_lsfr = false;
+    _clock_shift = 0;
+
+    _length_enable = false;
+
+    _active = false;
 }

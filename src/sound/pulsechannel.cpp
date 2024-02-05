@@ -173,15 +173,20 @@ void PulseChannel::write_io_register(uint16_t address, uint8_t value) {
 }
 
 void PulseChannel::clear_registers() {
-    _length_timer = 63;
-    _frequency_sweep_step = 0b111;
-    _frequency_sweep_downwards = true;
-    _frequency_sweep_pace = 0b111;
-    _duty_cycle = 0b11;
-    _volume_sweep_pace = 0b111;
-    _volume_sweep_increments = true;
-    _volume = 0b1111;
-    _initial_volume = 0b1111;
-    _period = 0b111111111111;
-    _length_enable = true;
+    _frequency_sweep_step = 0;
+    _frequency_sweep_downwards = false;
+    _frequency_sweep_pace = 0;
+
+    _length_timer = 64;
+    _duty_cycle = 0;
+
+    _volume_sweep_pace = 0;
+    _volume_sweep_increments = false;
+    _volume = _initial_volume = 0;
+    _dac_enabled = false;
+
+    _period = 0;
+    _length_enable = false;
+
+    _active = false;
 }

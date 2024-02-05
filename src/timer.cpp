@@ -16,26 +16,35 @@ void Timer::tick() {
     // This is a 16 bit value and the upper 8 bits are the true DIV.
     _div++;
 
-    // TODO: implement https://gbdev.io/pandocs/Timer_Obscure_Behaviour.html
-    if (enabled()) {
-        // Timer enabled
-        uint16_t mask = TIMER_FREQUENCY_MASKS[_clock_select];
-        if ((++_tima_counter & mask) == 0) {
-            // Increment TIMA
-            if (++_tima == 0) {
-                // Overflowed, request a timer interrupt.
-                gb.request_interrupt(Interrupts::Timer);
-            }
-        }
+    uint16_t mask = TIMA_MASKS[_clock_select];
+    if ((_div & mask) == 0) {
+        // Increment TIMA
+        tick_tima();
     }
 }
 
-uint8_t Timer::write_io_register(uint16_t address) {
+void Timer::tick_tima() {
+    if (!enabled()) {
+        return;
+    }
+
+    if (++_tima == 0) {
+        // Overflowed, request a timer interrupt.
+        gb.request_interrupt(Interrupts::Timer);
+    }
+}
+
+uint8_t Timer::read_io_register(uint16_t address) {
     switch (address) {
     case DIV: return div();
     case TIMA: return _tima;
     case TMA: return _tma;
-    case TAC: return (_enabled << 2) | ((uint8_t) _clock_select);
+    case TAC: {
+        uint8_t value = 0b1111000;
+        value = utils::set_bit_value(value, 2, _enabled);
+        value |= ((uint8_t) _clock_select) & 0b11;
+        return value;
+    }
     default: return 0xFF;
     }
 }
@@ -43,6 +52,13 @@ uint8_t Timer::write_io_register(uint16_t address) {
 void Timer::write_io_register(uint16_t address, uint8_t value) {
     switch (address) {
     case DIV: {
+        // Timer bug: if selected bit of div is set (for TIMA), increment TIMA
+        uint16_t bit = TIMA_BITS[_clock_select];
+        if ((_div & bit) != 0) {
+            // Increment TIMA
+            tick_tima();
+        }
+
         _div = 0;
         break;
     }

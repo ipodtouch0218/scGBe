@@ -11,18 +11,22 @@ namespace TimerFrequency {
     };
 }
 
-constexpr uint16_t TIMER_FREQUENCY_MASKS[] = {
-    0x3FF,
-    0xF,
-    0x3F,
-    0xFF,
+constexpr uint16_t TIMA_BITS[] = {
+    1 << 9, // Falling edge of bit 9
+    1 << 3, // Falling edge of bit 3
+    1 << 5, // Falling edge of bit 5
+    1 << 7, // Falling edge of bit 7
+};
+
+constexpr uint16_t TIMA_MASKS[] = {
+    0x3FF, // Falling edge of bit 9
+    0xF, // Falling edge of bit 3
+    0x3F, // Falling edge of bit 5
+    0xFF, // Falling edge of bit 7
 };
 
 class Timer : GBComponent {
-    protected:
-    // Increments TIMA when (this & TIMER_FREQUENCY_MASK) == 0
-    uint16_t _tima_counter = 0;
-
+    private:
     // Upper 8 bits are the true div value
     uint16_t _div = 0;
 
@@ -36,8 +40,9 @@ class Timer : GBComponent {
     Timer(GBSystem& gb);
 
     void tick();
+    void tick_tima();
 
-    uint8_t write_io_register(uint16_t address);
+    uint8_t read_io_register(uint16_t address);
     void write_io_register(uint16_t address, uint8_t value);
 
     uint8_t div() const {

@@ -8,6 +8,7 @@ class WaveChannel : public SoundChannel {
     uint8_t _wave_samples[32];
     uint8_t _wave_index = 0;
     uint8_t _current_wave_sample;
+    bool _wave_sample_read;
 
     public:
     WaveChannel(uint16_t base_address);

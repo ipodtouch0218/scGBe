@@ -18,12 +18,12 @@ CPU::CPU(GBSystem& gb_param)
 
 void CPU::tick() {
     if (wait_ticks == 0) {
-        bool ime_enable_was_active = ime_enable_next_cycle;
+        bool ime_enable_was_active = _ime_enable_next_cycle;
         wait_ticks = execute();
 
-        if (ime_enable_was_active && ime_enable_next_cycle) {
+        if (ime_enable_was_active && _ime_enable_next_cycle) {
             _ime_flag = true;
-            ime_enable_next_cycle = false;
+            _ime_enable_next_cycle = false;
         }
     }
     wait_ticks--;
@@ -249,6 +249,7 @@ uint8_t CPU::execute() {
         // STOP: 0b00010000
         // TODO
         // throw std::runtime_error("Stop!");
+        gb.write_address(DIV, 0, true);
         return 1;
     }
 
@@ -372,7 +373,7 @@ uint8_t CPU::execute() {
 
         // Halt bug
         if (!_ime_flag && (gb.read_address(IE, true) & _interrupt_flags)) {
-            _halted = ime_enable_next_cycle;
+            _halted = _ime_enable_next_cycle;
             halt_bug = true;
         }
         return 1;
@@ -794,6 +795,7 @@ uint8_t CPU::execute() {
     case 0xF3: {
         // DISABLE INTERRUPTS: 0b11110011
         _ime_flag = false;
+        _ime_enable_next_cycle = false;
         return 1;
     }
 
@@ -837,7 +839,7 @@ uint8_t CPU::execute() {
 
     case 0xFB: {
         // ENABLE INTERRUPTS: 0b11111011
-        ime_enable_next_cycle = true;
+        _ime_enable_next_cycle = true;
         return 1;
     }
 
@@ -877,7 +879,7 @@ uint8_t CPU::execute() {
 
 uint8_t CPU::read_io_register(uint16_t address) {
     switch (address) {
-    case IF: return _interrupt_flags;
+    case IF: return ~0x1F | _interrupt_flags;
     default: return 0xFF;
     }
 }
@@ -890,23 +892,22 @@ void CPU::write_io_register(uint16_t address, uint8_t value) {
 }
 
 uint8_t CPU::check_for_interrupts() {
+    uint8_t ie = gb.read_address(IE, true);
     if (!_ime_flag) {
-        if (_halted && (gb.read_address(IE) & _interrupt_flags & 0x1F)) {
+        if (_halted && (ie & _interrupt_flags & 0x1F)) {
             _halted = false;
-            _interrupt_flags = 0;
-            return 0;
         }
+        return 0;
     }
 
-    uint8_t pending_interrupts = gb.read_address(IE) & _interrupt_flags & 0x1F;
+    uint8_t pending_interrupts = ie & _interrupt_flags & 0x1F;
     int lowest_set_bit_index = __builtin_ctz(pending_interrupts);
-    if (lowest_set_bit_index < 8) {
+    if (lowest_set_bit_index <= 4) {
         uint16_t addr = INTERRUPT_VECTORS + lowest_set_bit_index * 0x8;
         _ime_flag = false;
-        _interrupt_flags = 0;
-        call_function(addr);
-
         _halted = false;
+        call_function(addr);
+        _interrupt_flags = 0;
         return 5;
     }
 
@@ -1023,13 +1024,15 @@ void CPU::reset() {
 
     // Post-bootrom state:
     registers.a = 0x01;
+    registers.flags = Flags::from_byte(0xB0);
     registers.b = 0x00;
     registers.c = 0x13;
     registers.d = 0x00;
     registers.e = 0xD8;
-    registers.flags = Flags::from_byte(0xB0);
     registers.h = 0x01;
     registers.l = 0x4D;
-    registers.sp = 0xFFFE;
     registers.pc = 0x0100;
+    registers.sp = 0xFFFE;
+
+    // TODO: registers.
 }
