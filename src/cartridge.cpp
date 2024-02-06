@@ -95,9 +95,6 @@ uint8_t Cartridge::read_address(uint16_t address) {
                 } else {
                     effective_rom_bank = 0;
                 }
-            } else {
-                // If lower 5 bits == 1, set lsb
-                effective_rom_bank |= ((_rom_bank & 0x1F) == 0);
             }
             target_addr = (address % ROM_SIZE) + (((uint32_t) effective_rom_bank) * ROM_SIZE);
             break;
@@ -219,8 +216,11 @@ void Cartridge::write_address(uint16_t address, uint8_t value) {
         if (address <= 0x1FFF) {
             // RAM enable
             _sram_enabled = (value & 0xF) == 0xA;
+
         } else if (address <= 0x3FFF) {
             // ROM Bank number lower bits selection
+            // Values of "0" are automatically converted to "1", regardless of upper bits.
+            value |= (value == 0);
             _rom_bank &= ~0x1F;
             _rom_bank |= (value & 0x1F);
 
