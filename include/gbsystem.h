@@ -48,7 +48,7 @@ class GBSystem {
 
     void add_register_callbacks(GBComponent* component, std::initializer_list<uint16_t> addresses);
     void add_register_callbacks_range(GBComponent* component, uint16_t address_start, uint16_t address_end_exclusive);
-    void request_interrupt(Interrupts::Interrupts interrupt);
+    bool request_interrupt(Interrupts::Interrupts interrupt);
 
     CPU& cpu() {
         return _cpu;

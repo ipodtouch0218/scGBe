@@ -66,6 +66,11 @@ struct OAMEntry {
     uint8_t cgb_palette() const {
         return attributes & 0b111;
     }
+
+    // For X-coordinate sorting:
+    bool operator < (const OAMEntry& other) const {
+        return x_position < other.x_position;
+    }
 };
 
 class PPU : public GBComponent {
@@ -105,6 +110,8 @@ class PPU : public GBComponent {
     uint16_t _dots = 0;
     uint8_t _penalty_dots = 0;
     uint8_t _draw_pixel_x = 0;
+    bool _drawing_window = false;
+    uint8_t _window_scanline = 0;
 
     std::vector<OAMEntry*> _scanline_sprite_buffer;
     bool _scanline_sprite_penalties[MAX_SPRITES_PER_SCANLINE];

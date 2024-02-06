@@ -4,7 +4,7 @@
 class GBSystem;
 
 class GBComponent {
-    protected:
+    public:
     GBSystem& gb;
 
     public:

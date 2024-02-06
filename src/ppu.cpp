@@ -1,7 +1,7 @@
 #include "ppu.h"
+#include <algorithm>
 #include <iostream>
 #include <iomanip>
-#include <fstream>
 #include "gbsystem.h"
 #include "registers.h"
 #include "utils.h"
@@ -20,6 +20,10 @@ PPU::PPU(GBSystem& gb) :
     _scanline_sprite_buffer.reserve(10);
 }
 
+bool oam_entry_pointer_sort(OAMEntry* a, OAMEntry* b) {
+    return a->x_position < b->x_position;
+}
+
 void PPU::tick() {
 
     if (!enabled()) {
@@ -35,6 +39,8 @@ void PPU::tick() {
             _dots = 0;
             _draw_pixel_x = 0;
             _current_scanline = 0;
+            _drawing_window = false;
+            _window_scanline = 0;
             _mode = LCDDrawMode::OAM_Scan;
             _was_disabled = false;
         } else {
@@ -45,6 +51,9 @@ void PPU::tick() {
     LCDDrawMode::LCDDrawMode previous_draw_mode = _mode;
 
     if (_mode == LCDDrawMode::OAM_Scan) {
+        if (_dots == 0) {
+            _drawing_window |= _current_scanline == _window_scroll_y;
+        }
         if (_dots == OAM_SCAN_DOTS) {
             _scanline_sprite_buffer.clear();
             uint8_t sprite_height = 8 + (8 * _obj_tall);
@@ -63,15 +72,12 @@ void PPU::tick() {
                 if (y_diff < sprite_height) {
                     // On this scanline!
                     _scanline_sprite_buffer.push_back(entry);
-                    if (_scanline_sprite_buffer.size() == MAX_SPRITES_PER_SCANLINE) {
-                        break;
-                    }
                 }
             }
 
             if (!gb.cgb_mode()) {
                 // TODO Sort entries by x-coordinate, instead of OAM order.
-
+                std::sort(_scanline_sprite_buffer.begin(), _scanline_sprite_buffer.end(), oam_entry_pointer_sort);
             }
 
             for (size_t i = 0; i < MAX_SPRITES_PER_SCANLINE; i++) {
@@ -94,9 +100,9 @@ void PPU::tick() {
         uint8_t draw_pixel_of_bg_tile_y = target_pixel_in_bg_y % 8;
 
         // WINDOW
-        bool in_window = _window_enabled && _current_scanline >= _window_scroll_y && (_draw_pixel_x + 7) >= _window_scroll_x;
+        bool in_window = _window_enabled && _drawing_window && (_draw_pixel_x + 7) >= _window_scroll_x;
         uint8_t target_pixel_in_window_x = _draw_pixel_x + 7 - _window_scroll_x;
-        uint8_t target_pixel_in_window_y = _current_scanline - _window_scroll_y;
+        uint8_t target_pixel_in_window_y = _window_scanline - _window_scroll_y;
 
         uint8_t window_tilemap_x = target_pixel_in_window_x / 8;
         uint8_t window_tilemap_y = target_pixel_in_window_y / 8;
@@ -111,7 +117,7 @@ void PPU::tick() {
         // if statement only runs in DMG mode.
         std::vector<OAMEntry*> sprites_to_draw;
         if (_obj_enabled && !gb.cgb_mode()) {
-            for (size_t i = 0; i < _scanline_sprite_buffer.size(); i++) {
+            for (size_t i = 0; i < std::min(_scanline_sprite_buffer.size(), (size_t) MAX_SPRITES_PER_SCANLINE); i++) {
                 OAMEntry* entry = _scanline_sprite_buffer[i];
                 uint8_t x_diff = (_draw_pixel_x + 8) - entry->x_position;
 
@@ -193,51 +199,43 @@ void PPU::tick() {
             }
 
             // TODO: window bugs (scx==0, stuff like that.)
-            if (in_window) {
-                // Window:
-                uint16_t window_tilemap_addr = _window_tilemap_high ? TILEMAP1_ADDR : TILEMAP0_ADDR;
-                uint8_t window_tile_index = read_address(window_tilemap_addr + window_tilemap_x + (window_tilemap_y * 32), true);
+            uint8_t draw_pixel_value = 0;
+            if (_bg_window_enable_priority) {
+                if (in_window) {
+                    // Window:
+                    uint16_t window_tilemap_addr = _window_tilemap_high ? TILEMAP1_ADDR : TILEMAP0_ADDR;
+                    uint8_t window_tile_index = read_address(window_tilemap_addr + window_tilemap_x + (window_tilemap_y * 32), true);
 
-                uint16_t window_tile_addr;
-                if (_bg_tile_data_low) {
-                    uint32_t offset = window_tile_index;
-                    window_tile_addr = TILE_BLOCK0_ADDR + (offset * 0x10);
+                    uint16_t window_tile_addr;
+                    if (_bg_tile_data_low) {
+                        uint32_t offset = window_tile_index;
+                        window_tile_addr = TILE_BLOCK0_ADDR + (offset * 0x10);
+                    } else {
+                        uint32_t offset = (int8_t) window_tile_index;
+                        window_tile_addr = TILE_BLOCK2_ADDR + (offset * 0x10);
+                    }
+
+                    draw_pixel_value = get_pixel_of_tile(window_tile_addr, draw_pixel_of_window_tile_x, draw_pixel_of_window_tile_y);
+
                 } else {
-                    uint32_t offset = (int8_t) window_tile_index;
-                    window_tile_addr = TILE_BLOCK2_ADDR + (offset * 0x10);
+                    // Background:
+                    uint16_t bg_tilemap_addr = _bg_tilemap_high ? TILEMAP1_ADDR : TILEMAP0_ADDR;
+                    uint8_t bg_tile_index = read_address(bg_tilemap_addr + bg_tilemap_x + (bg_tilemap_y * 32), true);
+
+                    uint16_t bg_tile_addr;
+                    if (_bg_tile_data_low) {
+                        uint32_t offset = bg_tile_index;
+                        bg_tile_addr = TILE_BLOCK0_ADDR + (offset * 0x10);
+                    } else {
+                        int32_t offset = (int8_t) bg_tile_index;
+                        bg_tile_addr = TILE_BLOCK2_ADDR + (offset * 0x10);
+                    }
+
+                    draw_pixel_value = get_pixel_of_tile(bg_tile_addr, draw_pixel_of_bg_tile_x, draw_pixel_of_bg_tile_y);
                 }
-
-                uint8_t pixel_value = get_pixel_of_tile(window_tile_addr, draw_pixel_of_window_tile_x, draw_pixel_of_window_tile_y);
-
-                if (!drew_sprite || (drew_sprite->priority() && pixel_value != 0)) {
-                    // Draw, either over the sprite or there's no sprite at all.
-                    uint8_t final_color_index = _bg_palette[pixel_value];
-
-                    ((uint32_t*) framebuffer)[framebuffer_index] = SCREEN_COLORS[final_color_index];
-                }
-
-            } else {
-                // Background:
-                uint16_t bg_tilemap_addr = _bg_tilemap_high ? TILEMAP1_ADDR : TILEMAP0_ADDR;
-                uint8_t bg_tile_index = read_address(bg_tilemap_addr + bg_tilemap_x + (bg_tilemap_y * 32), true);
-
-                uint16_t bg_tile_addr;
-                if (_bg_tile_data_low) {
-                    uint32_t offset = bg_tile_index;
-                    bg_tile_addr = TILE_BLOCK0_ADDR + (offset * 0x10);
-                } else {
-                    int32_t offset = (int8_t) bg_tile_index;
-                    bg_tile_addr = TILE_BLOCK2_ADDR + (offset * 0x10);
-                }
-
-                uint8_t pixel_value = get_pixel_of_tile(bg_tile_addr, draw_pixel_of_bg_tile_x, draw_pixel_of_bg_tile_y);
-
-                if (!drew_sprite || (drew_sprite->priority() && pixel_value != 0)) {
-                    // Draw, either over the sprite or there's no sprite at all.
-                    uint8_t final_color_index = _bg_palette[pixel_value];
-
-                    ((uint32_t*) framebuffer)[framebuffer_index] = SCREEN_COLORS[final_color_index];
-                }
+            }
+            if (!drew_sprite || (drew_sprite->priority() && draw_pixel_value != 0)) {
+                ((uint32_t*) framebuffer)[framebuffer_index] = SCREEN_COLORS[_bg_palette[draw_pixel_value]];
             }
 
             if (++_draw_pixel_x == SCREEN_W) {
@@ -255,6 +253,7 @@ void PPU::tick() {
         _dots = 0;
         _draw_pixel_x = 0;
         _current_scanline++;
+        _window_scanline += (_window_scroll_x <= 166 && _window_scroll_y <= 143);
 
         if (_current_scanline == SCREEN_H) {
             // Entering VBlank
@@ -268,6 +267,8 @@ void PPU::tick() {
         } else if (_current_scanline == SCANLINES_PER_FRAME) {
             // Next frame
             _current_scanline = 0;
+            _drawing_window = false;
+            _window_scanline = 0;
             _mode = LCDDrawMode::OAM_Scan;
         }
     }
@@ -373,6 +374,8 @@ uint8_t PPU::read_io_register(uint16_t address) {
 
         if (!_enabled) {
             _current_scanline = 0;
+            _drawing_window = false;
+            _window_scanline = 0;
             _dots = 0;
             _draw_pixel_x = 0;
             _mode = LCDDrawMode::HBlank;
@@ -404,6 +407,12 @@ uint8_t PPU::read_io_register(uint16_t address) {
         result |= _obj_palettes[1][2] << 4;
         result |= _obj_palettes[1][3] << 6;
         return result;
+    }
+    case WY: {
+        return _window_scroll_y;
+    }
+    case WX: {
+        return _window_scroll_x;
     }
     default: return 0xFF;
     }

@@ -169,6 +169,8 @@ void GBSystem::add_register_callbacks_range(GBComponent* component, uint16_t add
     }
 }
 
-void GBSystem::request_interrupt(Interrupts::Interrupts interrupt) {
-    write_address(IF, read_address(IF, true) | (uint8_t) interrupt, true);
+bool GBSystem::request_interrupt(Interrupts::Interrupts interrupt) {
+    uint8_t old_value = read_address(IF, true);
+    write_address(IF, old_value | (uint8_t) interrupt, true);
+    return (old_value & (uint8_t) interrupt) == 0;
 }

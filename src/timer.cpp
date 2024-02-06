@@ -71,8 +71,17 @@ void Timer::write_io_register(uint16_t address, uint8_t value) {
         break;
     }
     case TAC: {
+        // Timer bug: if _enabled is now set when it wasnt, flash if mask matches.
+        bool was_enabled = _enabled;
         _clock_select = (TimerFrequency::TimerFrequency) (value & 0b11);
         _enabled = utils::get_bit_value(value, 2);
+
+        uint16_t bit = TIMA_BITS[_clock_select];
+        if (!was_enabled && _enabled && (_div & bit) != 0) {
+            // Increment TIMA
+            tick_tima();
+        }
+
         break;
     }
     }

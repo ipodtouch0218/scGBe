@@ -33,6 +33,15 @@ void Cartridge::load_rom(std::vector<uint8_t>& bytes) {
         _mbc = MBC::MBC3;
         break;
     }
+    case 0x19:
+    case 0x1A:
+    case 0x1B:
+    case 0x1C:
+    case 0x1D:
+    case 0x1E: {
+        _mbc = MBC::MBC5;
+        break;
+    }
     default: {
         _mbc = MBC::None;
         break;
@@ -112,6 +121,14 @@ uint8_t Cartridge::read_address(uint16_t address) {
             target_addr = (address % ROM_SIZE) + (((uint32_t) effective_rom_bank) * ROM_SIZE);
             break;
         }
+        case MBC::MBC5: {
+            uint8_t effective_rom_bank = _rom_bank;
+            if (address < (ROM_START + ROM_SIZE)) {
+                effective_rom_bank = 0;
+            }
+            target_addr = (address % ROM_SIZE) + (((uint32_t) effective_rom_bank) * ROM_SIZE);
+            break;
+        }
         }
 
         if (target_addr >= _rom.size()) {
@@ -177,6 +194,13 @@ uint8_t Cartridge::read_address(uint16_t address) {
                     }
                 }
             }
+            break;
+        }
+        case MBC::MBC5: {
+            target_addr += (_sram_bank * ROM_SIZE);
+            break;
+        }
+        default: {
             break;
         }
         }
@@ -320,9 +344,7 @@ void Cartridge::write_address(uint16_t address, uint8_t value) {
                 // SRAM
                 address -= SRAM_START;
                 address += (_sram_bank * ROM_SIZE);
-                if (address >= _sram.size()) {
-                    break;
-                }
+                address %= _sram.size();
                 _sram[address] = value;
                 break;
             } else {
@@ -355,6 +377,38 @@ void Cartridge::write_address(uint16_t address, uint8_t value) {
                 }
                 }
             }
+        }
+        break;
+    }
+    case MBC::MBC5: {
+        if (address <= 0x1FFF) {
+            // RAM  enable
+            _sram_enabled = (value & 0xF) == 0xA;
+
+        } else if (address <= 0x2FFF) {
+            // ROM Bank number lower bits
+            _rom_bank &= 0xFF00;
+            _rom_bank |= value;
+
+        } else if (address <= 0x3FFF) {
+            // ROM Bank number higher bit
+            _rom_bank &= 0x00FF;
+            _rom_bank |= ((uint16_t) (value & 1)) << 8;
+
+        } else if (address <= 0x5FFF) {
+            // RAM Bank
+            _sram_bank = value;
+
+        } else if (address >= SRAM_START && address < (SRAM_START + SRAM_SIZE)) {
+            // SRAM
+            if (!_sram_enabled) {
+                break;
+            }
+
+            address -= SRAM_START;
+            address += (_sram_bank * ROM_SIZE);
+            address %= _sram.size();
+            _sram[address] = value;
         }
         break;
     }

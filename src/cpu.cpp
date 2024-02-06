@@ -16,9 +16,32 @@ CPU::CPU(GBSystem& gb_param)
     gb.add_register_callbacks(this, {IF});
 }
 
+void print_state(CPU& cpu) {
+    std::cerr << std::hex << std::uppercase << std::setfill('0') <<
+        "A:"       << std::setw(2) << (int) cpu.registers.a <<
+        " B:"      << std::setw(2) << (int) cpu.registers.b <<
+        " C:"      << std::setw(2) << (int) cpu.registers.c <<
+        " D:"      << std::setw(2) << (int) cpu.registers.d <<
+        " E:"      << std::setw(2) << (int) cpu.registers.e <<
+        " F:"      << std::setw(2) << (int) cpu.registers.flags.to_byte() <<
+        " H:"      << std::setw(2) << (int) cpu.registers.h <<
+        " L:"      << std::setw(2) << (int) cpu.registers.l <<
+        " SP:"     << std::setw(4) << (int) cpu.registers.sp <<
+        " PC:"     << std::setw(4) << (int) cpu.registers.pc <<
+        " PCMEM: " << std::setw(2) << (int) cpu.gb.read_address(cpu.registers.pc-3) <<
+        ","        << std::setw(2) << (int) cpu.gb.read_address(cpu.registers.pc-2) <<
+        ","        << std::setw(2) << (int) cpu.gb.read_address(cpu.registers.pc-1) <<
+        ","        << std::setw(2) << (int) cpu.gb.read_address(cpu.registers.pc+0) <<
+        ","        << std::setw(2) << (int) cpu.gb.read_address(cpu.registers.pc+1) <<
+        ","        << std::setw(2) << (int) cpu.gb.read_address(cpu.registers.pc+2) <<
+        ","        << std::setw(2) << (int) cpu.gb.read_address(cpu.registers.pc+3) <<
+        std::endl;
+}
+
 void CPU::tick() {
     if (wait_ticks == 0) {
         bool ime_enable_was_active = _ime_enable_next_cycle;
+
         wait_ticks = execute();
 
         if (ime_enable_was_active && _ime_enable_next_cycle) {
@@ -852,25 +875,6 @@ uint8_t CPU::execute() {
 
     default: {
         std::cerr << "Unknown opcode! 0x" << std::hex << std::uppercase << std::setw(2) << (int) opcode << std::endl;
-        std::cerr << std::hex << std::uppercase << std::setfill('0') <<
-            "A:"       << std::setw(2) << (int) registers.a <<
-            " B:"      << std::setw(2) << (int) registers.b <<
-            " C:"      << std::setw(2) << (int) registers.c <<
-            " D:"      << std::setw(2) << (int) registers.d <<
-            " E:"      << std::setw(2) << (int) registers.e <<
-            " F:"      << std::setw(2) << (int) registers.flags.to_byte() <<
-            " H:"      << std::setw(2) << (int) registers.h <<
-            " L:"      << std::setw(2) << (int) registers.l <<
-            " SP:"     << std::setw(4) << (int) registers.sp <<
-            " PC:"     << std::setw(4) << (int) registers.pc <<
-            " PCMEM: " << std::setw(2) << (int) gb.read_address(registers.pc-3) <<
-            ","        << std::setw(2) << (int) gb.read_address(registers.pc-2) <<
-            ","        << std::setw(2) << (int) gb.read_address(registers.pc-1) <<
-            ","        << std::setw(2) << (int) gb.read_address(registers.pc+0) <<
-            ","        << std::setw(2) << (int) gb.read_address(registers.pc+1) <<
-            ","        << std::setw(2) << (int) gb.read_address(registers.pc+2) <<
-            ","        << std::setw(2) << (int) gb.read_address(registers.pc+3) <<
-            std::endl;
         throw std::invalid_argument("Unknown opcode " + opcode);
         return 1;
     }
@@ -903,7 +907,7 @@ uint8_t CPU::check_for_interrupts() {
     uint8_t pending_interrupts = ie & _interrupt_flags & 0x1F;
     int lowest_set_bit_index = __builtin_ctz(pending_interrupts);
     if (lowest_set_bit_index <= 4) {
-        uint16_t addr = INTERRUPT_VECTORS + lowest_set_bit_index * 0x8;
+        uint16_t addr = INTERRUPT_VECTORS + (lowest_set_bit_index * 0x8);
         _ime_flag = false;
         _halted = false;
         call_function(addr);
