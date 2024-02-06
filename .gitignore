@@ -1,10 +1,14 @@
-*.gb
-*.exe
-/build
+# VSCode settings
 /.vscode
+
+# CMake cache files
 /CMakeFiles
-/lib
+Makefile
 *.cmake
-/bin
 /_deps
 CMakeCache.txt
+
+# Builds
+/bin
+*.gb
+*.exe
