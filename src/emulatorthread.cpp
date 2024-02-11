@@ -1,6 +1,6 @@
 #include "emulatorthread.h"
-#include <thread>
 #include <iostream>
+#include <thread>
 
 extern void on_frame_complete();
 
@@ -41,7 +41,7 @@ wxThread::ExitCode EmulatorThread::Entry() {
         if (frame_complete) {
             on_frame_complete();
             // Frame is done! Wait enough time...
-            if (_gb->frame_number == 2) {
+            if (_sound_stream.getStatus() != sf::SoundSource::Status::Playing && _sound_stream.filled_audio_buffer.size() >= (1064 * 2)) {
                 _sound_stream.play();
             }
 
@@ -58,6 +58,7 @@ wxThread::ExitCode EmulatorThread::Entry() {
 
 void EmulatorThread::pause() {
     _pause_after_frame = 0;
+    _sound_stream.stop();
 }
 
 void EmulatorThread::unpause() {

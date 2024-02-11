@@ -1,9 +1,10 @@
 #pragma once
+#include <wx/dnd.h>
 #include <wx/thread.h>
 #include <wx/wxprec.h>
 #include <wx/wx.h>
 
-class DisplayPanel : public wxPanel {
+class DisplayPanel : public wxPanel, public wxFileDropTarget {
     wxBitmap* image;
     wxMutex painting_mutex;
 
@@ -14,6 +15,7 @@ class DisplayPanel : public wxPanel {
     void render(wxDC& draw_context);
 
     private:
+    bool OnDropFiles(wxCoord x, wxCoord y, const wxArrayString& files);
     void on_paint(wxPaintEvent& event);
     void on_key_down(wxKeyEvent& event);
     void on_key_up(wxKeyEvent& event);

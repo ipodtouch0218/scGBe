@@ -2,6 +2,12 @@
 #include <wx/wxprec.h>
 #include <wx/wx.h>
 
+namespace CustomMenuIds {
+    enum CustomMenuIds {
+        ID_PAUSE = 1,
+    };
+}
+
 class EmulatorFrame : public wxFrame {
     private:
     wxBitmap display;
@@ -10,9 +16,11 @@ class EmulatorFrame : public wxFrame {
     EmulatorFrame(const wxString& title, const wxSize& size);
 
     private:
-    void on_open(wxCommandEvent& event);
-    void on_close(wxCommandEvent& event);
-    void on_exit(wxCommandEvent& event);
+    void on_file_open(wxCommandEvent& event);
+    void on_file_close(wxCommandEvent& event);
+    void on_file_exit(wxCommandEvent& event);
+
+    void on_emulation_pause(wxCommandEvent& event);
 
     wxDECLARE_EVENT_TABLE();
 };

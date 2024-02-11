@@ -9,6 +9,9 @@ PPU::PPU(GBSystem& gb) :
 {
     gb.add_register_callbacks(this, {LY, LYC, STAT, LCDC, SCY, SCX, BGP, OBP0, OBP1, WY, WX});
     _scanline_sprite_buffer.reserve(10);
+
+    // 0 the framebuffer
+    std::fill(std::begin(framebuffer), std::end(framebuffer), 0);
 }
 
 bool oam_entry_pointer_sort(OAMEntry* a, OAMEntry* b) {

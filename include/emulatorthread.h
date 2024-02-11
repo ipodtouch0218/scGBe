@@ -33,4 +33,8 @@ class EmulatorThread : public wxThread {
     GBSystem& gb() {
         return *_gb;
     }
+
+    bool paused() const {
+        return _gb->frame_number > _pause_after_frame;
+    }
 };

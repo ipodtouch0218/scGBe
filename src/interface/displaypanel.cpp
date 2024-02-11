@@ -1,5 +1,6 @@
 #include "displaypanel.h"
 #include <algorithm>
+#include <string>
 #include <wx/dcbuffer.h>
 #include <wx/rawbmp.h>
 #include "emulatorthread.h"
@@ -8,6 +9,7 @@
 
 extern EmulatorThread* emulator_thread;
 extern uint8_t inputs;
+extern bool open_emulator(std::string filename);
 
 constexpr uint8_t SCREEN_RGB_COLORS[4][3] = {
     0x62, 0x68, 0x0D, // #62680D
@@ -27,6 +29,11 @@ DisplayPanel::DisplayPanel(wxFrame* parent)
 {
     display_panel_instance = this;
     image = new wxBitmap(160, 144);
+}
+
+bool DisplayPanel::OnDropFiles(wxCoord x, wxCoord y, const wxArrayString& files) {
+    open_emulator(files.at(0).ToStdString());
+    return true;
 }
 
 void DisplayPanel::render(wxDC& draw_context) {
