@@ -1,10 +1,10 @@
-#include "gbsystem.h"
 #include <algorithm>
 #include <chrono>
 #include <cstring>
-#include <iostream>
-#include <iterator>
 #include <fstream>
+#include <iostream>
+#include <iomanip>
+#include <iterator>
 #include <thread>
 
 #include <SFML/Audio.hpp>
@@ -13,17 +13,20 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/System.hpp>
 
+#include <wx/wxprec.h>
+#include <wx/wx.h>
+
+#include "gbsystem.h"
+#include "emulatorframe.h"
+#include "emulatorthread.h"
 #include "utils.h"
 
+/*
 constexpr int WINDOW_SCALE = 2;
-
-GBSystem* gb = nullptr;
-bool request_dump = false;
-bool log_on = false;
-extern uint8_t inputs;
+sf::RenderWindow* window;
 
 void window_thread() {
-    sf::RenderWindow window(sf::VideoMode(160 * WINDOW_SCALE, 144 * WINDOW_SCALE), "Test Window");
+    window = new sf::RenderWindow(sf::VideoMode(160 * WINDOW_SCALE, 144 * WINDOW_SCALE), "scGBe - " + gb->cartridge().header().str_title());
 
     sf::Texture texture;
     texture.create(SCREEN_W, SCREEN_H);
@@ -31,12 +34,12 @@ void window_thread() {
     sprite.setTexture(texture);
     sprite.setScale(WINDOW_SCALE, WINDOW_SCALE);
 
-    while (window.isOpen()) {
+    while (window->isOpen()) {
         sf::Event event;
-        while (window.pollEvent(event)) {
+        while (window->pollEvent(event)) {
             switch (event.type) {
             case sf::Event::Closed: {
-                window.close();
+                window->close();
                 exit(0);
                 break;
             }
@@ -89,71 +92,23 @@ void window_thread() {
             }
         }
 
-        window.clear();
+        window->clear();
         texture.update((sf::Uint8*) gb->ppu().framebuffer);
-        window.draw(sprite);
-        window.display();
+        window->draw(sprite);
+        window->display();
     }
 }
 
-class GBSoundStream : public sf::SoundStream {
-    public:
-    sf::Mutex mutex;
-    std::vector<sf::Int16> filled_audio_buffer;
-    std::vector<sf::Int16> playing_audio_buffer;
-
-    GBSoundStream() {
-        initialize(2, 31775);
-        filled_audio_buffer.reserve(532 * 2 * 2);
-        playing_audio_buffer.reserve(532 * 2);
-    }
-
-    bool onGetData(SoundStream::Chunk& data) {
-        mutex.lock();
-        int size = filled_audio_buffer.size();
-        if (size >= 532 * 2) {
-            std::copy_n(filled_audio_buffer.begin(), 532 * 2, playing_audio_buffer.begin());
-            filled_audio_buffer.erase(filled_audio_buffer.begin(), filled_audio_buffer.begin() + 532 * 2);
-        } else {
-            // std::cerr << "[AUDIO] didnt have enough samples! (" << size << ")" << std::endl;
-        }
-
-        mutex.unlock();
-
-        data.samples = playing_audio_buffer.data();
-        data.sampleCount = 532 * 2;
-        return true;
-    }
-
-    void onSeek(sf::Time timeOffset) { }
-
-    void add_sample(sf::Int16 sample) {
-        mutex.lock();
-        filled_audio_buffer.push_back(sample);
-        mutex.unlock();
-    }
-};
 
 int main(int argc, char* argv[]) {
 
-    if (argc < 2) {
-        std::cerr << "Please specify a rom file!" << std::endl;
-        return 1;
-    }
-
-    std::ifstream rom_file(argv[1], std::ios::in | std::ios::binary);
-    if (!rom_file.is_open()) {
-        std::cerr << "Failed to open " << argv[1] << std::endl;
-        return 1;
-    }
-
     gb = new GBSystem(false);
-
-    std::vector<uint8_t> rom((std::istreambuf_iterator<char>(rom_file)), std::istreambuf_iterator<char>());
-    rom_file.close();
-
-    gb->cartridge().load_rom(rom);
-    gb->reset();
+    if (argc >= 2) {
+        if (!open_rom(argv[1])) {
+            std::cerr << "Failed to open the rom '" << argv[1] << "'" << std::endl;
+            exit(2);
+        }
+    }
 
     sf::Thread thread(&window_thread);
     thread.launch();
@@ -165,14 +120,14 @@ int main(int argc, char* argv[]) {
 
     while(true) {
         // Get a new sound sample.
-        if (gb->cycles % 132 == 0) {
-            sound_stream->add_sample(gb->apu().current_sample(false));
-            sound_stream->add_sample(gb->apu().current_sample(true));
+        int expected_samples = (std::min(gb->frame_number, (uint64_t) 2) * 1064) + ((gb->frame_cycles / 132) * 2);
+        if (gb->frame_cycles % 132 == 0) {
+            sound_stream->add_sample(gb->apu().current_sample(false), gb->apu().current_sample(true));
         }
 
         if (gb->tick()) {
             // Frame is done! Wait enough time...
-            if (gb->frame_number == 3 && sound_stream->getStatus() != sf::SoundSource::Status::Playing) {
+            if (gb->frame_number == 2) {
                 sound_stream->play();
             }
 
@@ -181,3 +136,51 @@ int main(int argc, char* argv[]) {
     }
     return 0;
 }
+*/
+
+EmulatorThread* emulator_thread = nullptr;
+
+void close_emulator() {
+    if (!emulator_thread) {
+        return;
+    }
+
+    EmulatorThread* temp = emulator_thread;
+    emulator_thread = nullptr;
+    temp->Delete();
+}
+
+bool open_emulator(std::string filename) {
+
+    close_emulator();
+
+    std::ifstream rom_file(filename, std::ios::in | std::ios::binary);
+    if (!rom_file.is_open()) {
+        std::cerr << "Failed to open " << filename << std::endl;
+        return false;
+    }
+
+    std::vector<uint8_t> rom((std::istreambuf_iterator<char>(rom_file)), std::istreambuf_iterator<char>());
+    rom_file.close();
+
+    emulator_thread = new EmulatorThread(rom);
+    wxThreadError error;
+    if ((error = emulator_thread->Run()) != wxTHREAD_NO_ERROR || !emulator_thread->rom_valid()) {
+        delete emulator_thread;
+        emulator_thread = nullptr;
+        return false;
+    }
+
+    return true;
+}
+
+class scGBe : public wxApp {
+    virtual bool OnInit() {
+        // Open the window
+        EmulatorFrame* frame = new EmulatorFrame("scGBe - No ROM Opened", wxSize(160 * 3, 144 * 3));
+        frame->Show(true);
+        return true;
+    }
+};
+
+wxIMPLEMENT_APP(scGBe);

@@ -10,12 +10,21 @@ FetchContent_Declare(SFML
     GIT_TAG 2.6.x)
 FetchContent_MakeAvailable(SFML)
 
+# Dependency: wxWidgets
+set(wxBUILD_SHARED OFF)
+FetchContent_Declare(wxWidgets
+   GIT_REPOSITORY https://github.com/wxWidgets/wxWidgets.git
+   GIT_SHALLOW ON
+)
+FetchContent_MakeAvailable(wxWidgets)
+
 file(GLOB_RECURSE sources CONFIGURE_DEPENDS src/*.cpp)
-include_directories(include include/sound)
+include_directories(include include/interface include/gb include/gb/sound)
 
 include_directories($ENV{mingw64}/include)
 add_executable(scGBe ${sources})
 target_link_libraries(scGBe PRIVATE sfml-graphics sfml-audio)
+target_link_libraries(scGBe PRIVATE wxcore)
 target_compile_features(scGBe PRIVATE cxx_std_17)
 target_compile_options(scGBe PRIVATE -O3)
 

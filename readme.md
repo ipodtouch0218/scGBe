@@ -7,7 +7,8 @@
 scGBe uses CMake with MinGW Makefiles for building to Windows. GNU/G++ must be used as the compiler for its [switch range extension](https://gcc.gnu.org/onlinedocs/gcc/Case-Ranges.html).
 
 ### Dependencies
-* [SFML](https://www.sfml-dev.org/) will be automatically downloaded by CMake. Used for the game window, input, and audio streaming.
+* [wxWidgets](https://www.wxwidgets.org/) should be automatically downloaded by CMake. Used for the GUI, image rendering, and input.
+* [SFML](https://www.sfml-dev.org/) should be automatically downloaded by CMake. Used for audio streaming.
 
 ### Windows Building Guide
 1. Download and install [MSYS2](https://www.msys2.org/).
