@@ -13,18 +13,20 @@ class EmulatorThread : public wxThread {
     std::unique_ptr<GBSystem> _gb;
     uint64_t _pause_after_frame = -1;
     bool _rom_valid = false;
-    std::chrono::_V2::system_clock::time_point emulation_start_time;
+    std::chrono::_V2::system_clock::time_point _emulation_start_time;
+    double _fps = 59.7275f;
 
     SoundStreamer _sound_stream;
 
     public:
     EmulatorThread(std::vector<uint8_t>& rom);
 
-    ExitCode Entry(); 
+    ExitCode Entry();
 
     void pause();
     void unpause();
     void next_frame();
+    void set_fps(double fps);
 
     bool rom_valid() const {
         return _rom_valid;

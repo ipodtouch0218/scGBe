@@ -84,6 +84,10 @@ void DisplayPanel::on_paint(wxPaintEvent& event) {
 void DisplayPanel::on_key_up(wxKeyEvent& event) {
     uint8_t index;
     switch (event.GetKeyCode()) {
+    case WXK_TAB: {
+        emulator_thread->set_fps(59.7275);
+        return;
+    }
     case WXK_RETURN: index = 7; break;
     case WXK_BACK: index = 6; break;
     case 'Z': index = 5; break;
@@ -100,6 +104,10 @@ void DisplayPanel::on_key_up(wxKeyEvent& event) {
 void DisplayPanel::on_key_down(wxKeyEvent& event) {
     uint8_t index;
     switch (event.GetKeyCode()) {
+    case WXK_TAB: {
+        emulator_thread->set_fps(59.7275 * 2);
+        return;
+    }
     case WXK_RETURN: index = 7; break;
     case WXK_BACK: index = 6; break;
     case 'Z': index = 5; break;
