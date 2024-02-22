@@ -15,6 +15,7 @@ class EmulatorThread : public wxThread {
     bool _rom_valid = false;
     std::chrono::_V2::system_clock::time_point _emulation_start_time;
     double _fps = 59.7275f;
+    double _audio_sample_timer = 0;
 
     SoundStreamer _sound_stream;
 

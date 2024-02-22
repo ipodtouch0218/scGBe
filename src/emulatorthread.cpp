@@ -2,6 +2,8 @@
 #include <iostream>
 #include <thread>
 
+constexpr double MAX_AUDIO_ERROR_CORRECT_PERCENTAGE = 0.005;
+
 extern void on_frame_complete();
 
 EmulatorThread::EmulatorThread(std::vector<uint8_t>& rom)
@@ -20,7 +22,7 @@ EmulatorThread::EmulatorThread(std::vector<uint8_t>& rom)
 wxThread::ExitCode EmulatorThread::Entry() {
     // Actual thread entry point
 
-    // 1/(59.7275)... this is dumb.
+    // 1/(59.7275)... this syntax is... interesting.
     using frames = std::chrono::duration<int64_t, std::ratio<400, 23891>>;
     _emulation_start_time = std::chrono::system_clock::now();
 
@@ -29,14 +31,16 @@ wxThread::ExitCode EmulatorThread::Entry() {
             return (wxThread::ExitCode) 0;
         }
 
-        // Tick the emulator
-        bool frame_complete = _gb->tick();
+        // Audio sampling rates
         double sample_rate = 132.0 * (_fps / 59.7275);
 
-        // Get a new sound sample.
-        // TODO: addess desyncs
-        if (_gb->cycles % (int) (sample_rate) == 0) {
+        // Tick the emulator
+        bool frame_complete = _gb->tick();
+
+        // Get a new sound sample. (if ready)
+        if (++_audio_sample_timer >= sample_rate) {
             _sound_stream.add_sample(_gb->apu().current_sample(false), _gb->apu().current_sample(true));
+            _audio_sample_timer -= sample_rate;
         }
 
         if (frame_complete) {

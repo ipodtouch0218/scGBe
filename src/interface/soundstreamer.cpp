@@ -1,4 +1,5 @@
 #include "soundstreamer.h"
+#include <iostream>
 
 SoundStreamer::SoundStreamer() {
     initialize(2, 31775);
@@ -13,7 +14,7 @@ bool SoundStreamer::onGetData(SoundStream::Chunk& data) {
         std::copy_n(filled_audio_buffer.begin(), 532 * 2, playing_audio_buffer.begin());
         filled_audio_buffer.erase(filled_audio_buffer.begin(), filled_audio_buffer.begin() + 532 * 2);
     } else {
-        // std::cerr << "[AUDIO] didnt have enough samples! (" << size << "/1064)" << std::endl;
+        std::cerr << "[AUDIO] didnt have enough samples! (" << size << "/1064)" << std::endl;
     }
 
     mutex.unlock();

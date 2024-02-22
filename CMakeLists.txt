@@ -4,10 +4,17 @@ project(scGBe LANGUAGES CXX)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 
+# Dependency: SFML
 include(FetchContent)
 FetchContent_Declare(SFML
     GIT_REPOSITORY https://github.com/SFML/SFML.git
-    GIT_TAG 2.6.x)
+    GIT_TAG 2.6.x
+)
+set(SFML_BUILD_AUDIO ON)
+set(SFML_BUILD_GRAPHICS OFF)
+set(SFML_BUILD_NETWORK OFF)
+set(SFML_BUILD_SYSTEM OFF)
+set(SFML_BUILD_WINDOW OFF)
 FetchContent_MakeAvailable(SFML)
 
 # Dependency: wxWidgets
